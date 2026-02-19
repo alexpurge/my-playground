@@ -1565,6 +1565,10 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
 
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // Toast Handler
   const notify = (message, type = 'error') => {
     const id = Date.now();
