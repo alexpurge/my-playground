@@ -468,9 +468,9 @@ const styles = `
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(130deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0) 100%);
+    background: linear-gradient(130deg, rgba(12, 12, 12, 0.22) 0%, rgba(12, 12, 12, 0.08) 45%, rgba(12, 12, 12, 0) 100%);
     pointer-events: none;
-    opacity: 0.8;
+    opacity: 0.55;
   }
 
   [data-theme='light'] .booking-card {
