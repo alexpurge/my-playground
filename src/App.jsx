@@ -531,8 +531,8 @@ const styles = `
     line-height: 1;
   }
 
+  .icon-action-button,
   .booking-open-event-button {
-    margin-left: auto;
     width: 2.5rem;
     height: 2.5rem;
     border-radius: 0.75rem;
@@ -543,10 +543,14 @@ const styles = `
     align-items: center;
     justify-content: center;
     text-decoration: none;
+    cursor: pointer;
     box-shadow: 0 10px 16px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15);
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   }
 
+  .booking-open-event-button { margin-left: auto; }
+
+  .icon-action-button:hover,
   .booking-open-event-button:hover {
     transform: translateY(-1px);
     border-color: rgba(251, 146, 60, 0.85);
@@ -554,6 +558,7 @@ const styles = `
     box-shadow: 0 14px 24px -14px rgba(234, 88, 12, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 
+  [data-theme='light'] .icon-action-button,
   [data-theme='light'] .booking-open-event-button {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 244, 234, 0.88));
     border-color: rgba(234, 88, 12, 0.35);
@@ -757,27 +762,8 @@ const styles = `
 
   /* DISCONNECT BUTTON STYLES */
   .btn-disconnect {
-    display: flex; alignItems: center; justify-content: center;
-    background: #171717;
-    border: 1px solid #262626;
-    color: #737373;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    font-size: 1.125rem;
-    transition: all 0.2s;
-  }
-  .btn-disconnect:hover {
-    color: var(--text-primary);
-    border-color: #404040;
-  }
-  .btn-disconnect:active {
-    border-color: var(--accent-orange) !important;
-    color: var(--accent-orange);
-  }
-  [data-theme='light'] .btn-disconnect {
-     background: white;
-     border-color: var(--border-color);
+    border: none;
+    padding: 0;
   }
 
   /* RESPONSIVE */
@@ -1697,9 +1683,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                 <button 
                   onClick={handleSpeakNextHour} 
                   title="Speak next hour's schedule"
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.5rem' }}
+                  className="icon-action-button"
                 >
-                    <Volume2Icon size={28} color="#ea580c" />
+                    <Volume2Icon size={20} />
                 </button>
                 <div style={{ textAlign: 'right' }}>
                     <div className="bookings-count">{totalBookings}</div>
@@ -1807,7 +1793,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                  <button 
                   onClick={handleRefresh} 
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', padding: '0.5rem' }}
+                  className="icon-action-button"
                   title="Global Refresh"
                  >
                     <RefreshCwIcon size={24} />
@@ -1862,17 +1848,15 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           {/* THEME TOGGLE BUTTON */}
           <button 
             onClick={toggleTheme}
-            style={{ 
-              background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
-              display: 'flex', alignItems: 'center', padding: '0.5rem', marginLeft: '0.5rem' 
-            }}
+            className="icon-action-button"
+            style={{ marginLeft: '0.5rem' }}
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
              {theme === 'dark' ? <SunIcon size={20} /> : <MoonIcon size={20} />}
           </button>
         </div>
         <div className="footer-right">
-          <button onClick={onLogout} className="btn-disconnect">
+          <button onClick={onLogout} className="btn-disconnect icon-action-button">
              <LogOutIcon size={16} />
           </button>
           <div>
