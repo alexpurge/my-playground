@@ -1,86 +1,69 @@
-# Aircall Agent Status Dashboard
+# Aircall Agent Status Dashboard (Webhook-First)
 
-This project contains:
+This app now uses a **webhook-first ingestion pipeline** for Aircall metrics:
 
-- a React dashboard (`src/App.jsx`) that displays agent availability,
-- a lightweight webhook bridge server (`server/aircall-webhook-server.mjs`) that receives Aircall webhook events,
-- an SSE stream used by the UI to stay live-updated.
+- Aircall webhooks are received by `server.js`.
+- Webhook payloads are stored in a local JSON-backed database (`data/aircall-webhook-db.json` by default).
+- Daily agent metrics (`dials`, `talkTime`) are calculated from webhook events.
+- The frontend (`src/App.jsx`) reads those computed metrics from the local server API instead of polling Aircall REST calls.
+- Agent availability still updates live via SSE (`/api/aircall/stream`).
 
-## 1) Run the webhook bridge server
-
-```bash
-PORT=8787 npm run webhook:server
-```
-
-Optional environment variables:
-
-- `WEBHOOK_SECRET` (or `AIRCALL_WEBHOOK_SECRET`) – expected in `X-Webhook-Secret`.
-- `AIRCALL_SIGNING_SECRET` – validates `X-Aircall-Signature` (`sha256` HMAC).
-- `AIRCALL_API_ID` / `AIRCALL_API_KEY` – used by the webhook registration endpoint.
-- `PUBLIC_WEBHOOK_URL` – public HTTPS URL Aircall can call (for registration endpoint).
-
-### Webhook receiving endpoint
-
-Use one of these Aircall targets:
-
-- `POST /webhooks/aircall`
-- `POST /webhooks/aircall/status`
-
-The server responds quickly with `200 OK` and then broadcasts status changes to the UI SSE stream.
-
-### SSE endpoint for the app
-
-- `GET /events/agent-status`
-
-Set this in frontend env if needed:
+## Run
 
 ```bash
-VITE_WEBHOOK_EVENTS_URL=http://localhost:8787/events/agent-status
-```
-
-## 2) Register webhook in Aircall
-
-### Option A — direct Aircall API
-
-`POST https://api.aircall.io/v1/webhooks` (Basic Auth with API ID + API Key), body:
-
-```json
-{
-  "custom_name": "My App Status Webhook",
-  "url": "https://your-app.com/webhooks/aircall",
-  "events": [
-    "user.opened",
-    "user.closed",
-    "user.connected",
-    "user.disconnected",
-    "call.created",
-    "call.answered",
-    "call.ended"
-  ]
-}
-```
-
-### Option B — via local helper endpoint
-
-After setting `AIRCALL_API_ID`, `AIRCALL_API_KEY`, and `PUBLIC_WEBHOOK_URL`:
-
-```bash
-curl -X POST http://localhost:8787/webhooks/aircall/register
-```
-
-## 3) Event-to-status mapping
-
-The server maps events and/or payload status to UI statuses:
-
-- `user.opened`, `user.connected` -> `available`
-- `user.closed`, `user.disconnected` -> `unavailable`
-- `call.answered`, `call.created` -> `in_call`
-- `call.ended` -> `available`
-
-If payload includes explicit status (e.g. `availability_status`), that status is normalized and used first.
-
-## 4) Run the frontend
-
-```bash
+npm run webhook:server
 npm run dev
 ```
+
+Server environment options:
+
+- `PORT` (default `8787`)
+- `AIRCALL_API_ID`, `AIRCALL_API_KEY` (for webhook auto-registration helper)
+- `PUBLIC_WEBHOOK_BASE_URL` or `PUBLIC_WEBHOOK_URL` (public HTTPS base URL Aircall can call)
+- `AIRCALL_WEBHOOK_DB_FILE` (optional DB path override)
+- `AIRCALL_MAX_STORED_EVENTS` (default `10000`)
+
+## Webhook ingestion endpoints
+
+- `POST /api/aircall/webhook` – receives webhook payloads and updates metrics.
+- `POST /api/aircall/register-webhook` – helper route to register webhook URL in Aircall.
+
+## Metrics endpoints
+
+- `GET /api/aircall/metrics/daily?date=YYYY-MM-DD`
+  - Returns computed daily metrics per agent.
+- `GET /api/aircall/events?limit=50`
+  - Returns recent raw webhook events.
+- `GET /health`
+  - Includes DB/event counters.
+
+## Realtime status stream
+
+- `GET /api/aircall/stream` (SSE)
+
+## Aircall setup checklist
+
+1. In Aircall dashboard/API, ensure webhook events include at least:
+   - `call.created`
+   - `call.ended`
+   - `user.opened`
+   - `user.closed`
+   - `user.connected`
+   - `user.disconnected`
+2. Set webhook target to your public URL + `/api/aircall/webhook`.
+3. If using helper registration, call:
+
+```bash
+curl -X POST http://localhost:8787/api/aircall/register-webhook \
+  -H 'content-type: application/json' \
+  -d '{"apiId":"YOUR_API_ID","apiToken":"YOUR_API_KEY","publicWebhookUrl":"https://your-public-host"}'
+```
+
+## Notes on permissions / external prerequisites
+
+I can set up all local ingestion and calculation infrastructure (done in this repo), but you must provide:
+
+- valid Aircall credentials (`AIRCALL_API_ID` + `AIRCALL_API_KEY`) if you want automatic registration, and/or
+- webhook configuration in your Aircall account pointing to your publicly reachable URL.
+
+Without that external account-level access, local development can still be tested by posting sample payloads directly to `/api/aircall/webhook`.
