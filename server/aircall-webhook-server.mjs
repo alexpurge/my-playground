@@ -4,9 +4,22 @@ import http from 'node:http';
 const PORT = Number(process.env.PORT || 8787);
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.AIRCALL_WEBHOOK_SECRET || '';
 const AIRCALL_SIGNING_SECRET = process.env.AIRCALL_SIGNING_SECRET || '';
+const AIRCALL_API_ID = process.env.AIRCALL_API_ID || '';
+const AIRCALL_API_KEY = process.env.AIRCALL_API_KEY || '';
+const PUBLIC_WEBHOOK_URL = process.env.PUBLIC_WEBHOOK_URL || '';
 
 const clients = new Set();
 const latestStatuses = new Map();
+
+const AIRCALL_STATUS_EVENTS = new Set([
+  'user.opened',
+  'user.closed',
+  'user.connected',
+  'user.disconnected',
+  'call.created',
+  'call.answered',
+  'call.ended',
+]);
 
 const normalizeAvailability = (status) => {
   if (!status || typeof status !== 'string') return 'unavailable';
@@ -105,7 +118,35 @@ const isValidSignature = (rawBodyBuffer, incomingSignature, signingSecret) => {
 
 const pickFirst = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
 
+const getAvailabilityFromEvent = (eventName, rawStatus) => {
+  if (rawStatus) {
+    return normalizeAvailability(rawStatus);
+  }
+
+  const fromEvent = {
+    'user.opened': 'available',
+    'user.connected': 'available',
+    'user.closed': 'unavailable',
+    'user.disconnected': 'unavailable',
+    'call.answered': 'in_call',
+    'call.created': 'in_call',
+    'call.ended': 'available',
+  };
+
+  return fromEvent[eventName] || null;
+};
+
 const getStatusPayload = (body) => {
+  const eventName = String(body?.event || body?.type || '');
+
+  if (!AIRCALL_STATUS_EVENTS.has(eventName)) {
+    return {
+      ignored: true,
+      reason: 'Unsupported event',
+      sourceEvent: eventName || 'unknown',
+    };
+  }
+
   const userId = pickFirst(
     body?.data?.user?.id,
     body?.data?.user_id,
@@ -143,26 +184,108 @@ const getStatusPayload = (body) => {
     body?.data?.new?.status,
   );
 
-  if (!userId || !rawStatus) return null;
+  const availabilityStatus = getAvailabilityFromEvent(eventName, rawStatus);
+  if (!userId || !availabilityStatus) {
+    return {
+      ignored: true,
+      reason: 'Missing user id or status',
+      sourceEvent: eventName || 'unknown',
+    };
+  }
 
   return {
+    ignored: false,
     userId: String(userId),
     userName,
-    availabilityStatus: normalizeAvailability(rawStatus),
-    rawStatus: String(rawStatus),
-    sourceEvent: body?.event || body?.type || 'unknown',
+    availabilityStatus,
+    rawStatus: rawStatus ? String(rawStatus) : null,
+    sourceEvent: eventName || 'unknown',
     updatedAt: new Date().toISOString(),
   };
 };
 
 const isWebhookPath = (pathname) => ['/webhooks/aircall/status', '/webhooks/aircall'].includes(pathname);
 
+const parseRequestBody = async (req) => {
+  const rawBodyBuffer = await readRawBody(req);
+
+  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    return {
+      ok: false,
+      statusCode: 401,
+      body: { error: 'Invalid webhook secret' },
+    };
+  }
+
+  if (!isValidSignature(rawBodyBuffer, req.headers['x-aircall-signature'], AIRCALL_SIGNING_SECRET)) {
+    return {
+      ok: false,
+      statusCode: 401,
+      body: { error: 'Invalid Aircall signature' },
+    };
+  }
+
+  return {
+    ok: true,
+    body: parseJson(rawBodyBuffer),
+  };
+};
+
+const registerWebhook = async () => {
+  if (!AIRCALL_API_ID || !AIRCALL_API_KEY) {
+    return {
+      ok: false,
+      statusCode: 400,
+      body: { error: 'Missing AIRCALL_API_ID or AIRCALL_API_KEY' },
+    };
+  }
+
+  if (!PUBLIC_WEBHOOK_URL) {
+    return {
+      ok: false,
+      statusCode: 400,
+      body: { error: 'Missing PUBLIC_WEBHOOK_URL' },
+    };
+  }
+
+  const response = await fetch('https://api.aircall.io/v1/webhooks', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${Buffer.from(`${AIRCALL_API_ID}:${AIRCALL_API_KEY}`).toString('base64')}`,
+    },
+    body: JSON.stringify({
+      custom_name: 'My App Status Webhook',
+      url: PUBLIC_WEBHOOK_URL,
+      events: Array.from(AIRCALL_STATUS_EVENTS),
+    }),
+  });
+
+  const responseText = await response.text();
+  let responseBody;
+  try {
+    responseBody = JSON.parse(responseText);
+  } catch {
+    responseBody = { raw: responseText };
+  }
+
+  return {
+    ok: response.ok,
+    statusCode: response.status,
+    body: responseBody,
+  };
+};
+
+const json = (res, statusCode, body) => {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+  res.end(JSON.stringify(body));
+};
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
 
   if (req.method === 'GET' && url.pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, clients: clients.size, statuses: latestStatuses.size }));
+    json(res, 200, { ok: true, clients: clients.size, statuses: latestStatuses.size });
     return;
   }
 
@@ -190,6 +313,17 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && url.pathname === '/webhooks/aircall/register') {
+    try {
+      const result = await registerWebhook();
+      json(res, result.statusCode, result.body);
+      return;
+    } catch (error) {
+      json(res, 500, { error: 'Failed to register Aircall webhook', detail: error.message });
+      return;
+    }
+  }
+
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
@@ -202,44 +336,28 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && isWebhookPath(url.pathname)) {
     try {
-      const rawBodyBuffer = await readRawBody(req);
-
-      if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
-        res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        res.end(JSON.stringify({ error: 'Invalid webhook secret' }));
+      const parsedBody = await parseRequestBody(req);
+      if (!parsedBody.ok) {
+        json(res, parsedBody.statusCode, parsedBody.body);
         return;
       }
 
-      if (!isValidSignature(rawBodyBuffer, req.headers['x-aircall-signature'], AIRCALL_SIGNING_SECRET)) {
-        res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        res.end(JSON.stringify({ error: 'Invalid Aircall signature' }));
-        return;
+      const payload = getStatusPayload(parsedBody.body);
+      if (!payload.ignored) {
+        latestStatuses.set(payload.userId, payload);
+        broadcast('agent-status-updated', payload);
       }
 
-      const body = parseJson(rawBodyBuffer);
-      const payload = getStatusPayload(body);
-
-      if (!payload) {
-        res.writeHead(422, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        res.end(JSON.stringify({ error: 'Missing user id or status' }));
-        return;
-      }
-
-      latestStatuses.set(payload.userId, payload);
-      broadcast('agent-status-updated', payload);
-
-      res.writeHead(202, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ accepted: true, payload }));
+      // Aircall requires quick 200 acknowledgements.
+      json(res, 200, { accepted: true, payload });
       return;
     } catch (error) {
-      res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ error: 'Invalid JSON payload', detail: error.message }));
+      json(res, 400, { error: 'Invalid JSON payload', detail: error.message });
       return;
     }
   }
 
-  res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-  res.end(JSON.stringify({ error: 'Not found' }));
+  json(res, 404, { error: 'Not found' });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
