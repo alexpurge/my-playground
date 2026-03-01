@@ -46,6 +46,28 @@ const SunIcon = (props) => <IconBase {...props}><circle cx="12" cy="12" r="4" />
 const MoonIcon = (props) => <IconBase {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></IconBase>;
 const AlertTriangleIcon = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></IconBase>;
 
+const AGENT_STATUS_STREAM_URL = (import.meta.env.VITE_WEBHOOK_EVENTS_URL || 'http://localhost:8787/events/agent-status').trim();
+
+const normalizeAgentStatusFromWebhook = (inputStatus) => {
+  if (!inputStatus || typeof inputStatus !== 'string') return 'unavailable';
+
+  const normalized = inputStatus.trim().toLowerCase();
+
+  if (['available', 'online', 'ready'].includes(normalized)) return 'available';
+
+  if (['busy', 'in_call', 'in call', 'on_call', 'on a call', 'calling', 'on_phone', 'on the phone'].includes(normalized)) {
+    return 'in_call';
+  }
+
+  return 'unavailable';
+};
+
+const AGENT_STATUS_VIEW = {
+  available: { label: 'Available', className: 'available' },
+  in_call: { label: 'In Call', className: 'in-call' },
+  unavailable: { label: 'Unavailable', className: 'unavailable' },
+};
+
 /**
  * CUSTOM CSS STYLES
  */
@@ -1011,12 +1033,7 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk }) => {
   const talkShare = totalScore > 0 ? (talkScore / totalScore) * 100 : 0;
   const firstName = agent.name.split(' ')[0];
   const hasAvailability = !isTarget;
-  const availabilityConfig = {
-    available: { label: 'Available', className: 'available' },
-    in_call: { label: 'In Call', className: 'in-call' },
-    unavailable: { label: 'Unavailable', className: 'unavailable' },
-  };
-  const availability = availabilityConfig[agent.availabilityStatus] || availabilityConfig.unavailable;
+  const availability = AGENT_STATUS_VIEW[agent.availabilityStatus] || AGENT_STATUS_VIEW.unavailable;
 
   return (
     <div className={rowClass}>
@@ -1122,51 +1139,16 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
   const callsCache = useRef(new Map()); 
 
-  const normalizeAvailability = (status) => {
-    if (!status || typeof status !== 'string') return 'unavailable';
-    const normalized = status.toLowerCase().trim();
-
-    if (['available', 'online', 'ready'].includes(normalized)) return 'available';
-
-    if (
-      [
-        'busy',
-        'on_call',
-        'in_call',
-        'in call',
-        'calling',
-        'oncall',
-        'on a call',
-        'in_a_call',
-        'on_phone',
-        'on the phone',
-      ].includes(normalized)
-    ) {
-      return 'in_call';
-    }
-
-    if (['offline', 'away', 'do_not_disturb', 'unavailable'].includes(normalized)) return 'unavailable';
-
-    return 'unavailable';
-  };
-
-  const hasInCallSignal = (...statusCandidates) => {
-    for (const candidate of statusCandidates) {
-      const normalized = normalizeAvailability(candidate);
-      if (normalized === 'in_call') return true;
-    }
-    return false;
-  };
 
   useEffect(() => {
-    const webhookEventsUrl = (import.meta.env.VITE_WEBHOOK_EVENTS_URL || 'http://localhost:8787/events/agent-status').trim();
+    const webhookEventsUrl = AGENT_STATUS_STREAM_URL;
     if (!webhookEventsUrl) return undefined;
 
     const source = new EventSource(webhookEventsUrl);
 
     const applyStatus = (payload) => {
       if (!payload?.userId || !payload?.availabilityStatus) return;
-      const normalizedStatus = normalizeAvailability(payload.availabilityStatus);
+      const normalizedStatus = normalizeAgentStatusFromWebhook(payload.availabilityStatus);
 
       setAgents((currentAgents) => currentAgents.map((agent) => {
         if (agent.id !== payload.userId) return agent;
@@ -1493,57 +1475,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       return map;
     };
 
-    const resolveAvailabilityStatus = (availabilityItem) => {
-      const isAvailable = availabilityItem?.is_available;
-      const status = availabilityItem?.status;
-      const inCallSignals = [
-        status,
-        availabilityItem?.availability_status,
-        availabilityItem?.presence_status,
-        availabilityItem?.sub_status,
-        availabilityItem?.substatus,
-        availabilityItem?.reason,
-      ];
-
-      if (hasInCallSignal(...inCallSignals)) return 'in_call';
-
-      if (typeof status === 'string') {
-        const normalized = normalizeAvailability(status);
-        if (normalized === 'available' && isAvailable === false) return 'unavailable';
-        return normalized;
-      }
-
-      if (isAvailable === true) return 'available';
-      if (isAvailable === false) return 'unavailable';
-
-      return 'unavailable';
-    };
-
-    const fetchAvailabilityByUser = async (userIds) => {
-      if (!userIds.length) return {};
-
-      try {
-        const res = await fetch(`${baseUrl}/users/availabilities`, { headers });
-        if (!res.ok) {
-          console.warn(`Availability Fetch: ${res.status}`);
-          return {};
-        }
-
-        const data = await res.json();
-        const availabilities = Array.isArray(data?.availabilities) ? data.availabilities : [];
-
-        return availabilities.reduce((acc, item) => {
-          const id = String(item?.user_id || item?.user?.id || '');
-          if (!id || !userIds.includes(id)) return acc;
-          acc[id] = resolveAvailabilityStatus(item);
-          return acc;
-        }, {});
-      } catch (availabilityError) {
-        console.warn('Could not fetch user availabilities', availabilityError);
-        return {};
-      }
-    };
-
     const syncCalls = async (fullSync = false) => {
       try {
         if (!isMounted) return;
@@ -1605,12 +1536,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
             }
           }
           stats[uid] = { id: uid, name: userMap[uid], dials: 0, talkTime: 0, isTarget: false, availabilityStatus: 'unavailable' };
-        });
-
-        const trackedUserIds = Object.keys(stats);
-        const availabilityByUser = await fetchAvailabilityByUser(trackedUserIds);
-        trackedUserIds.forEach((uid) => {
-          stats[uid].availabilityStatus = availabilityByUser[uid] || 'unavailable';
         });
 
         callsCache.current.forEach(call => {
