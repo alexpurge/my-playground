@@ -45,6 +45,7 @@ const XIcon = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18
 const SunIcon = (props) => <IconBase {...props}><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" /></IconBase>;
 const MoonIcon = (props) => <IconBase {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></IconBase>;
 const AlertTriangleIcon = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></IconBase>;
+const ExternalLinkIcon = (props) => <IconBase {...props}><path d="M14 3h7v7" /><path d="M10 14 21 3" /><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" /></IconBase>;
 
 /**
  * CUSTOM CSS STYLES
@@ -528,6 +529,36 @@ const styles = `
     border: 1px solid rgba(251, 146, 60, 0.35);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 12px -10px rgba(0, 0, 0, 0.75);
     line-height: 1;
+  }
+
+  .booking-open-event-button {
+    margin-left: auto;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(251, 146, 60, 0.45);
+    background: linear-gradient(135deg, rgba(72, 33, 17, 0.9), rgba(35, 35, 35, 0.9));
+    color: #fb923c;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    box-shadow: 0 10px 16px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  .booking-open-event-button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(251, 146, 60, 0.85);
+    color: #fdba74;
+    box-shadow: 0 14px 24px -14px rgba(234, 88, 12, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  [data-theme='light'] .booking-open-event-button {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 244, 234, 0.88));
+    border-color: rgba(234, 88, 12, 0.35);
+    color: #ea580c;
+    box-shadow: 0 10px 16px -14px rgba(15, 23, 42, 0.35), inset 0 1px 0 rgba(255, 255, 255, 1);
   }
 
   [data-theme='light'] .booking-rep-chip {
@@ -1734,6 +1765,18 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                           <span className="booking-rep-chip">
                             {schedulerName}
                           </span>
+                          {booking.htmlLink && (
+                            <a
+                              href={booking.htmlLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="booking-open-event-button"
+                              title="Open this event in Google Calendar"
+                              aria-label="Open this event in Google Calendar"
+                            >
+                              <ExternalLinkIcon size={16} />
+                            </a>
+                          )}
                        </div>
                     </div>
                   );
