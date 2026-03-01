@@ -1195,9 +1195,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   useEffect(() => {
     if (apiId === 'demo' || webhookRegistered.current) return;
     const storedUrl = localStorage.getItem('aircallWebhookBaseUrl');
-    const publicWebhookUrl = storedUrl || window.prompt('Enter your public base URL (e.g. https://your-domain.com) so Aircall can deliver webhooks:');
-    if (!publicWebhookUrl) return;
-    localStorage.setItem('aircallWebhookBaseUrl', publicWebhookUrl);
+    const fallbackOrigin = window.location?.origin || '';
+    const publicWebhookUrl = storedUrl || fallbackOrigin;
+    if (publicWebhookUrl && !storedUrl) localStorage.setItem('aircallWebhookBaseUrl', publicWebhookUrl);
 
     const register = async () => {
       try {
