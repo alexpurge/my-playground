@@ -1150,6 +1150,34 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     return 'unavailable';
   };
 
+  const hasInCallSignal = (...statusCandidates) => {
+    for (const candidate of statusCandidates) {
+      const normalized = normalizeAvailability(candidate);
+      if (normalized === 'in_call') return true;
+    }
+    return false;
+  };
+
+  const isCallActive = (call) => {
+    if (!call || typeof call !== 'object') return false;
+
+    if (call.ended_at || call.endedAt) return false;
+
+    if (
+      hasInCallSignal(
+        call.status,
+        call.call_status,
+        call.state,
+        call.direction_status,
+      )
+    ) {
+      return true;
+    }
+
+    // Fallback: if a call has started/answered and has no end timestamp, treat as active.
+    return Boolean(call.answered_at || call.started_at || call.connected_at);
+  };
+
   useEffect(() => {
     const webhookEventsUrl = (import.meta.env.VITE_WEBHOOK_EVENTS_URL || 'http://localhost:8787/events/agent-status').trim();
     if (!webhookEventsUrl) return undefined;
@@ -1488,10 +1516,19 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     const resolveAvailabilityStatus = (availabilityItem) => {
       const isAvailable = availabilityItem?.is_available;
       const status = availabilityItem?.status;
+      const inCallSignals = [
+        status,
+        availabilityItem?.availability_status,
+        availabilityItem?.presence_status,
+        availabilityItem?.sub_status,
+        availabilityItem?.substatus,
+        availabilityItem?.reason,
+      ];
+
+      if (hasInCallSignal(...inCallSignals)) return 'in_call';
 
       if (typeof status === 'string') {
         const normalized = normalizeAvailability(status);
-        if (normalized === 'in_call') return 'in_call';
         if (normalized === 'available' && isAvailable === false) return 'unavailable';
         return normalized;
       }
@@ -1600,6 +1637,11 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
             if (call.user && stats[call.user.id] && (call.direction === 'inbound' || call.direction === 'outbound')) {
               stats[call.user.id].dials += 1;
               stats[call.user.id].talkTime += (call.duration || 0);
+
+              // Keep status aligned with live call activity even when availability API lags.
+              if (isCallActive(call)) {
+                stats[call.user.id].availabilityStatus = 'in_call';
+              }
             }
         });
 
