@@ -366,23 +366,24 @@ const styles = `
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
-    box-shadow: 0 18px 36px -20px rgba(234, 88, 12, 0.5), 0 10px 18px -12px rgba(0, 0, 0, 0.8);
+    box-shadow: none;
+    animation: upcoming-card-pulse 2.2s ease-in-out infinite;
   }
 
   .upcoming-summary-card::before {
     content: '';
     position: absolute;
-    inset: -2px;
+    inset: 0;
     border-radius: inherit;
-    padding: 2px;
+    padding: 1px;
     background: conic-gradient(
       from 0deg,
-      transparent 0deg,
-      transparent 300deg,
-      rgba(251, 146, 60, 0.15) 320deg,
-      rgba(251, 146, 60, 0.95) 340deg,
-      rgba(234, 88, 12, 1) 352deg,
-      rgba(249, 115, 22, 0.65) 360deg
+      rgba(251, 146, 60, 0.08) 0deg,
+      rgba(251, 146, 60, 0.08) 300deg,
+      rgba(251, 146, 60, 0.55) 326deg,
+      rgba(251, 146, 60, 0.98) 344deg,
+      rgba(234, 88, 12, 1) 356deg,
+      rgba(251, 146, 60, 0.08) 360deg
     );
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
@@ -390,7 +391,7 @@ const styles = `
     mask-composite: exclude;
     animation: rotate-upcoming-border 4s linear infinite;
     pointer-events: none;
-    z-index: -1;
+    z-index: 2;
   }
 
   [data-theme='light'] .upcoming-summary-card {
@@ -402,6 +403,18 @@ const styles = `
   @keyframes rotate-upcoming-border {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+  }
+
+  @keyframes upcoming-card-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      filter: brightness(1);
+    }
+    50% {
+      transform: scale(1.012);
+      filter: brightness(1.08);
+    }
   }
 
   .upcoming-summary-content {
