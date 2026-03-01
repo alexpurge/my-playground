@@ -46,28 +46,6 @@ const SunIcon = (props) => <IconBase {...props}><circle cx="12" cy="12" r="4" />
 const MoonIcon = (props) => <IconBase {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></IconBase>;
 const AlertTriangleIcon = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></IconBase>;
 
-const AGENT_STATUS_STREAM_URL = (import.meta.env.VITE_WEBHOOK_EVENTS_URL || 'http://localhost:8787/events/agent-status').trim();
-
-const normalizeAgentStatusFromWebhook = (inputStatus) => {
-  if (!inputStatus || typeof inputStatus !== 'string') return 'unavailable';
-
-  const normalized = inputStatus.trim().toLowerCase();
-
-  if (['available', 'online', 'ready'].includes(normalized)) return 'available';
-
-  if (['busy', 'in_call', 'in call', 'on_call', 'on a call', 'calling', 'on_phone', 'on the phone', 'ringing', 'after_call_work', 'wrap_up'].includes(normalized)) {
-    return 'in_call';
-  }
-
-  return 'unavailable';
-};
-
-const AGENT_STATUS_VIEW = {
-  available: { label: 'Available', className: 'available' },
-  in_call: { label: 'In Call', className: 'in-call' },
-  unavailable: { label: 'Unavailable', className: 'unavailable' },
-};
-
 /**
  * CUSTOM CSS STYLES
  */
@@ -604,46 +582,6 @@ const styles = `
     color: var(--text-primary); 
     text-transform: uppercase; /* ALL CAPS */
   }
-  .agent-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    font-size: 1.05rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-secondary);
-  }
-  .status-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    box-shadow: 0 0 0 0 rgba(var(--status-rgb), 0.7);
-    animation: pulse-status 2s infinite;
-  }
-  .status-dot.available {
-    --status-rgb: 22, 163, 74;
-    background: #16a34a;
-  }
-  .status-dot.in-call {
-    --status-rgb: 245, 158, 11;
-    background: #f59e0b;
-  }
-  .status-dot.unavailable {
-    --status-rgb: 239, 68, 68;
-    background: #ef4444;
-  }
-  .agent-status-label {
-    line-height: 1;
-  }
-
-  @keyframes pulse-status {
-    0% { box-shadow: 0 0 0 0 rgba(var(--status-rgb), 0.7); }
-    70% { box-shadow: 0 0 0 6px rgba(var(--status-rgb), 0); }
-    100% { box-shadow: 0 0 0 0 rgba(var(--status-rgb), 0); }
-  }
-
   .progress-wrapper { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
   
   .progress-track {
@@ -815,7 +753,7 @@ const styles = `
     .rank-badge { width: 3rem; height: 3rem; font-size: 1.25rem; }
     .agent-info { width: 8rem; gap: 0.2rem; }
     .agent-name { font-size: 1.2rem; }
-    .agent-status { font-size: 0.8rem; gap: 0.35rem; }
+
     .status-dot { width: 10px; height: 10px; }
     .score-box { width: 5rem; padding-left: 0.5rem; }
     .total-score { font-size: 1.75rem; }
@@ -1032,8 +970,6 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk }) => {
   const dialShare = totalScore > 0 ? (dialScore / totalScore) * 100 : 0;
   const talkShare = totalScore > 0 ? (talkScore / totalScore) * 100 : 0;
   const firstName = agent.name.split(' ')[0];
-  const hasAvailability = !isTarget;
-  const availability = AGENT_STATUS_VIEW[agent.availabilityStatus] || AGENT_STATUS_VIEW.unavailable;
 
   return (
     <div className={rowClass}>
@@ -1042,12 +978,6 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk }) => {
       </div>
       <div className="agent-info">
         <div className="agent-name">{firstName}</div>
-        {hasAvailability && (
-          <div className="agent-status">
-            <span className={`status-dot ${availability.className}`}></span>
-            <span className="agent-status-label">{availability.label}</span>
-          </div>
-        )}
         {isTarget && <span style={{ fontSize: '1rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#16a34a' }}>Goal</span>}
       </div>
       <div className="progress-wrapper">
@@ -1139,56 +1069,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
   const callsCache = useRef(new Map()); 
 
-
-  useEffect(() => {
-    const webhookEventsUrl = AGENT_STATUS_STREAM_URL;
-    if (!webhookEventsUrl) return undefined;
-
-    const source = new EventSource(webhookEventsUrl);
-
-    const applyStatus = (payload) => {
-      if (!payload?.availabilityStatus) return;
-      const normalizedStatus = normalizeAgentStatusFromWebhook(payload.availabilityStatus);
-      const payloadUserId = payload?.userId !== undefined && payload?.userId !== null ? String(payload.userId) : null;
-      const payloadUserName = payload?.userName ? String(payload.userName).trim().toLowerCase() : null;
-
-      setAgents((currentAgents) => currentAgents.map((agent) => {
-        const matchesById = payloadUserId ? String(agent.id) === payloadUserId : false;
-        const matchesByName = payloadUserName ? String(agent.name || '').trim().toLowerCase() === payloadUserName : false;
-
-        if (!matchesById && !matchesByName) return agent;
-        return { ...agent, availabilityStatus: normalizedStatus };
-      }));
-    };
-
-    source.addEventListener('snapshot', (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (!Array.isArray(data?.agents)) return;
-        data.agents.forEach(applyStatus);
-      } catch (error) {
-        console.warn('Failed to parse webhook snapshot event', error);
-      }
-    });
-
-    source.addEventListener('agent-status-updated', (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        applyStatus(payload);
-      } catch (error) {
-        console.warn('Failed to parse webhook status event', error);
-      }
-    });
-
-    source.onerror = () => {
-      console.warn('Webhook status stream disconnected');
-    };
-
-    return () => {
-      source.close();
-    };
-  }, []);
-   
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -1207,7 +1087,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       dials: Math.floor(Math.random() * 80) + 20,
       talkTime: Math.floor(Math.random() * 8000) + 1200,
       isTarget: false,
-      availabilityStatus: ['available', 'in_call', 'unavailable'][Math.floor(Math.random() * 3)],
     }));
   };
 
@@ -1540,7 +1419,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
               return; 
             }
           }
-          stats[uid] = { id: uid, name: userMap[uid], dials: 0, talkTime: 0, isTarget: false, availabilityStatus: 'unavailable' };
+          stats[uid] = { id: uid, name: userMap[uid], dials: 0, talkTime: 0, isTarget: false };
         });
 
         callsCache.current.forEach(call => {
