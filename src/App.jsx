@@ -449,20 +449,43 @@ const styles = `
   }
 
   .booking-card {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     border-radius: 0.75rem;
     padding: 1.25rem; 
-    background: var(--bg-booking-card); 
-    border: 1px solid #333;
-    border-left: 6px solid var(--accent-orange); 
+    background: linear-gradient(145deg, rgba(60, 31, 15, 0.7) 0%, rgba(22, 22, 22, 0.72) 60%, rgba(10, 10, 10, 0.76) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-left: 4px solid rgba(234, 88, 12, 0.8); 
     min-height: auto; 
     height: auto;
     display: flex; flex-direction: column; justify-content: space-between;
-    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.5);
-    transition: transform 0.2s;
+    box-shadow: 0 20px 40px -28px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
-  [data-theme='light'] .booking-card { border-color: #e2e8f0; }
 
-  .booking-card:hover { transform: translateY(-2px); box-shadow: 0 15px 25px -5px rgba(234, 88, 12, 0.2); }
+  .booking-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(130deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0) 100%);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  [data-theme='light'] .booking-card {
+    background: linear-gradient(145deg, rgba(255, 250, 245, 0.84) 0%, rgba(255, 255, 255, 0.88) 65%, rgba(255, 255, 255, 0.92) 100%);
+    border-color: rgba(148, 163, 184, 0.35);
+    box-shadow: 0 18px 32px -24px rgba(15, 23, 42, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .booking-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(251, 146, 60, 0.45);
+    box-shadow: 0 22px 36px -22px rgba(234, 88, 12, 0.34), 0 8px 20px -16px rgba(15, 23, 42, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
 
   .booking-meta { 
     display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; 
@@ -483,6 +506,38 @@ const styles = `
     white-space: normal; 
     word-break: break-word;
     margin: 0.25rem 0 1rem 0;
+  }
+
+  .booking-rep-row {
+    margin-top: auto;
+    padding-top: 0.85rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .booking-rep-chip {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+    color: #fff;
+    padding: 0.5rem 1.25rem;
+    border-radius: 2rem;
+    font-weight: 900;
+    font-size: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 8px 16px -14px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    line-height: 1;
+  }
+
+  [data-theme='light'] .booking-rep-chip {
+    color: #9a3412;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 244, 234, 0.82));
+    border-color: rgba(251, 146, 60, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 20px -16px rgba(15, 23, 42, 0.3);
   }
 
   /* AGENT ROWS - SCALED UP BY 20% */
@@ -1569,17 +1624,8 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                        </div>
                        <div className="booking-summary">{displaySummary}</div>
                        
-                       {/* SCHEDULED BY UPDATE */}
-                       <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px dashed #444', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <span style={{ 
-                              background: '#262626', 
-                              color: 'white', 
-                              padding: '0.5rem 1.25rem', /* Bigger padding */
-                              borderRadius: '2rem', 
-                              fontWeight: '900', /* Bolder */
-                              fontSize: '1.5rem', /* Bigger font for name */
-                              border: '1px solid #404040'
-                          }}>
+                       <div className="booking-rep-row">
+                          <span className="booking-rep-chip">
                             {schedulerName}
                           </span>
                        </div>
