@@ -1158,26 +1158,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     return false;
   };
 
-  const isCallActive = (call) => {
-    if (!call || typeof call !== 'object') return false;
-
-    if (call.ended_at || call.endedAt) return false;
-
-    if (
-      hasInCallSignal(
-        call.status,
-        call.call_status,
-        call.state,
-        call.direction_status,
-      )
-    ) {
-      return true;
-    }
-
-    // Fallback: if a call has started/answered and has no end timestamp, treat as active.
-    return Boolean(call.answered_at || call.started_at || call.connected_at);
-  };
-
   useEffect(() => {
     const webhookEventsUrl = (import.meta.env.VITE_WEBHOOK_EVENTS_URL || 'http://localhost:8787/events/agent-status').trim();
     if (!webhookEventsUrl) return undefined;
@@ -1637,11 +1617,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
             if (call.user && stats[call.user.id] && (call.direction === 'inbound' || call.direction === 'outbound')) {
               stats[call.user.id].dials += 1;
               stats[call.user.id].talkTime += (call.duration || 0);
-
-              // Keep status aligned with live call activity even when availability API lags.
-              if (isCallActive(call)) {
-                stats[call.user.id].availabilityStatus = 'in_call';
-              }
             }
         });
 
