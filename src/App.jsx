@@ -359,7 +359,7 @@ const styles = `
     isolation: isolate;
     overflow: hidden;
     border-radius: 0.75rem;
-    padding: 1.15rem 1.35rem;
+    padding: 1.15rem 1.35rem 1.45rem;
     background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
     border: 1px solid rgba(234, 88, 12, 0.25);
     display: flex;
@@ -368,6 +368,7 @@ const styles = `
     gap: 1rem;
     box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.45);
     animation: upcoming-card-background-pulse 2s infinite;
+    min-height: 132px;
   }
 
   [data-theme='light'] .upcoming-summary-card {
@@ -453,11 +454,11 @@ const styles = `
     isolation: isolate;
     overflow: hidden;
     border-radius: 0.75rem;
-    padding: 1.25rem; 
+    padding: 1.25rem 1.25rem 1.55rem;
     background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-left: 4px solid var(--accent-orange);
-    min-height: auto; 
+    min-height: 210px;
     height: auto;
     display: flex; flex-direction: column; justify-content: space-between;
     box-shadow: 0 20px 40px -28px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
