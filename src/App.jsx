@@ -354,6 +354,62 @@ const styles = `
     scrollbar-width: thin; scrollbar-color: #262626 var(--bg-header);
   }
 
+  .upcoming-summary-card {
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: var(--bg-booking-card);
+    border: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    box-shadow: 0 10px 20px -10px rgba(0, 0, 0, 0.5);
+  }
+
+  .upcoming-summary-content {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .upcoming-summary-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    font-weight: 800;
+  }
+
+  .upcoming-summary-reps {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .upcoming-summary-total {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .upcoming-summary-total-number {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--accent-orange);
+    line-height: 1;
+  }
+
+  .upcoming-summary-total-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    font-weight: 800;
+  }
+
   .booking-card {
     border-radius: 0.75rem;
     padding: 1.25rem; 
@@ -1333,6 +1389,19 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
   const totalBookings = upcomingBookings.length;
 
+  const oneHourFromNow = currentTime.getTime() + (60 * 60 * 1000);
+  const upcomingHourBookings = upcomingBookings.filter((booking) => {
+    if (!booking.start?.dateTime) return false;
+    const eventTime = new Date(booking.start.dateTime).getTime();
+    return eventTime >= currentTime.getTime() && eventTime <= oneHourFromNow;
+  });
+
+  const upcomingHourRepNames = [...new Set(
+    upcomingHourBookings
+      .map((booking) => getRepName(booking.creator?.email || booking.organizer?.email))
+      .filter(Boolean)
+  )];
+
   // NEW: Speak Next Hour Button Handler
   const handleSpeakNextHour = () => {
     notify("Generating audio announcement...", 'success');
@@ -1405,6 +1474,16 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
              </div>
           </div>
           <div className="bookings-list">
+             <div className="upcoming-summary-card">
+                <div className="upcoming-summary-content">
+                  <div className="upcoming-summary-title">Upcoming</div>
+                  <p className="upcoming-summary-reps">{upcomingHourRepNames.join(', ')}</p>
+                </div>
+                <div className="upcoming-summary-total">
+                  <div className="upcoming-summary-total-number">{upcomingHourBookings.length}</div>
+                  <div className="upcoming-summary-total-label">Total</div>
+                </div>
+             </div>
              {upcomingBookings.length > 0 ? (
                 upcomingBookings.map((booking, idx) => {
                   const startTime = new Date(booking.start.dateTime || booking.start.date);
