@@ -1148,7 +1148,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   // New Booking State
   const [bookings, setBookings] = useState([]);
   const [agentStatuses, setAgentStatuses] = useState({});
-  const webhookRegistered = useRef(false);
   
   // ElevenLabs State
   const announcedEventIds = useRef(new Set());
@@ -1159,76 +1158,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    if (apiId === 'demo') return undefined;
-
-    const eventSource = new EventSource('/api/aircall/stream');
-
-    eventSource.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data);
-        if (parsed.type === 'snapshot' && parsed.statuses) {
-          setAgentStatuses((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(parsed.statuses).map(([k, v]) => [k, normalizeAircallStatus(v?.status)])) }));
-          return;
-        }
-
-        if (parsed.type === 'status_update') {
-          const nextStatus = normalizeAircallStatus(parsed.status);
-          const nextEntries = {};
-          if (parsed.agent?.id !== null && parsed.agent?.id !== undefined) nextEntries[String(parsed.agent.id).toLowerCase()] = nextStatus;
-          if (parsed.agent?.name) nextEntries[String(parsed.agent.name).toLowerCase()] = nextStatus;
-          setAgentStatuses((prev) => ({ ...prev, ...nextEntries }));
-        }
-      } catch (error) {
-        console.error('Failed to parse webhook stream payload', error);
-      }
-    };
-
-    eventSource.onerror = () => {
-      setFetchStatus('Waiting for Aircall webhook stream...');
-    };
-
-    return () => eventSource.close();
-  }, [apiId]);
-
-  useEffect(() => {
-    if (apiId === 'demo' || webhookRegistered.current) return;
-    const storedUrl = localStorage.getItem('aircallWebhookBaseUrl');
-    const fallbackOrigin = window.location?.origin || '';
-    const publicWebhookUrl = storedUrl || fallbackOrigin;
-    if (publicWebhookUrl && !storedUrl) localStorage.setItem('aircallWebhookBaseUrl', publicWebhookUrl);
-
-    const register = async () => {
-      try {
-        const res = await fetch('/api/aircall/register-webhook', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiId, apiToken, publicWebhookUrl }),
-        });
-
-        const raw = await res.text();
-        let data = {};
-        if (raw) {
-          try {
-            data = JSON.parse(raw);
-          } catch {
-            data = { message: raw };
-          }
-        }
-
-        if (!res.ok) throw new Error(data?.message || 'Webhook registration failed');
-
-        webhookRegistered.current = true;
-        notify('Aircall webhook stream connected.', 'success');
-      } catch (error) {
-        console.error(error);
-        notify(`Webhook setup failed: ${error.message}`, 'error');
-      }
-    };
-
-    register();
-  }, [apiId, apiToken, notify]);
 
   const handleRefresh = () => {
     manualRefresh.current = true;
@@ -1518,9 +1447,14 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       const res = await fetch(`${baseUrl}/users?per_page=50`, { headers });
       if (!res.ok) throw new Error(`Users Fetch: ${res.status}`);
       const data = await res.json();
-      const map = {};
-      data.users.forEach(u => map[u.id] = u.name);
-      return map;
+      const users = {};
+      data.users.forEach((user) => {
+        users[user.id] = {
+          name: user.name,
+          status: normalizeAircallStatus(user?.availability_status || user?.status),
+        };
+      });
+      return users;
     };
 
     const syncCalls = async (fullSync = false) => {
@@ -1583,7 +1517,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
               return; 
             }
           }
-          stats[uid] = { id: uid, name: userMap[uid], dials: 0, talkTime: 0, isTarget: false };
+          stats[uid] = { id: uid, name: userMap[uid]?.name || 'Unknown', dials: 0, talkTime: 0, isTarget: false };
         });
 
         callsCache.current.forEach(call => {
@@ -1595,10 +1529,11 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
         const statusSeed = {};
         Object.values(stats).forEach((agent) => {
-          statusSeed[String(agent.id).toLowerCase()] = agentStatuses[String(agent.id).toLowerCase()] || 'unavailable';
-          statusSeed[String(agent.name).toLowerCase()] = agentStatuses[String(agent.name).toLowerCase()] || 'unavailable';
+          const userStatus = userMap[agent.id]?.status || 'unavailable';
+          statusSeed[String(agent.id).toLowerCase()] = userStatus;
+          statusSeed[String(agent.name).toLowerCase()] = userStatus;
         });
-        if (isMounted) setAgentStatuses(prev => ({ ...statusSeed, ...prev }));
+        if (isMounted) setAgentStatuses(statusSeed);
 
         const activeAgents = Object.values(stats).filter(agent => agent.dials > 0 || agent.talkTime > 0);
         const targetPaceAgent = calculateTargetPace();
