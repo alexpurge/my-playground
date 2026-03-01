@@ -340,7 +340,7 @@ const styles = `
   }
 
   .bookings-title {
-    font-family: var(--font-sans); font-weight: 900; font-size: 2.5rem;
+    font-family: var(--font-sans); font-weight: 900; font-size: 3rem;
     text-transform: uppercase; color: var(--text-primary); margin: 0; line-height: 1;
   }
 
@@ -355,26 +355,64 @@ const styles = `
   }
 
   .upcoming-summary-card {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     border-radius: 0.75rem;
-    padding: 1rem 1.25rem;
-    background: linear-gradient(145deg, #1f1f1f, #181818);
-    border: 1px solid #3a3a3a;
+    padding: 1.15rem 1.35rem;
+    background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
+    border: 1px solid rgba(234, 88, 12, 0.25);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
-    box-shadow: 0 12px 24px -14px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 18px 36px -20px rgba(234, 88, 12, 0.5), 0 10px 18px -12px rgba(0, 0, 0, 0.8);
+  }
+
+  .upcoming-summary-card::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    padding: 2px;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      transparent 300deg,
+      rgba(251, 146, 60, 0.15) 320deg,
+      rgba(251, 146, 60, 0.95) 340deg,
+      rgba(234, 88, 12, 1) 352deg,
+      rgba(249, 115, 22, 0.65) 360deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: rotate-upcoming-border 4s linear infinite;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  [data-theme='light'] .upcoming-summary-card {
+    background: linear-gradient(145deg, #fff4e8 0%, #fff8f2 58%, #ffffff 100%);
+    border-color: rgba(234, 88, 12, 0.35);
+    box-shadow: 0 18px 30px -24px rgba(234, 88, 12, 0.35), 0 10px 16px -14px rgba(15, 23, 42, 0.2);
+  }
+
+  @keyframes rotate-upcoming-border {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 
   .upcoming-summary-content {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.3rem;
   }
 
   .upcoming-summary-title {
-    font-size: 1.4rem;
+    font-size: 1.65rem;
     color: var(--text-primary);
     font-weight: 800;
     margin: 0;
@@ -385,20 +423,26 @@ const styles = `
   .upcoming-summary-reps {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 0.85rem;
   }
 
   .upcoming-summary-rep-pill {
-    background: linear-gradient(135deg, #2d2d2d, #222);
+    background: linear-gradient(135deg, rgba(65, 33, 17, 0.92), rgba(37, 37, 37, 0.88));
     color: white;
-    padding: 0.45rem 0.95rem;
+    padding: 0.5rem 1rem;
     border-radius: 999px;
     font-weight: 800;
     font-size: 1rem;
-    border: 1px solid #4b4b4b;
+    border: 1px solid rgba(251, 146, 60, 0.35);
     line-height: 1;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 10px -8px rgba(0, 0, 0, 0.8);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 12px -10px rgba(0, 0, 0, 0.75);
     transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+
+  [data-theme='light'] .upcoming-summary-rep-pill {
+    background: linear-gradient(135deg, #fff5ea, #fff);
+    color: #9a3412;
+    border-color: rgba(234, 88, 12, 0.35);
   }
 
   .upcoming-summary-rep-pill:hover {
@@ -412,7 +456,7 @@ const styles = `
   }
 
   .upcoming-summary-total-number {
-    font-size: 2rem;
+    font-size: 2.2rem;
     font-weight: 900;
     color: var(--accent-orange);
     line-height: 1;
@@ -1474,7 +1518,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           <div className="bookings-header">
              <div>
                  <h2 className="bookings-title">Bookings</h2>
-                 <div className="bookings-label" style={{ marginTop: '0.25rem' }}>UPCOMING</div>
              </div>
              
              {/* STATS + SPEECH BUTTON */}
