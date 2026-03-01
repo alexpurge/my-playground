@@ -1121,6 +1121,78 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const announcedEventIds = useRef(new Set());
 
   const callsCache = useRef(new Map()); 
+
+  const normalizeAvailability = (status) => {
+    if (!status || typeof status !== 'string') return 'unavailable';
+    const normalized = status.toLowerCase().trim();
+
+    if (['available', 'online', 'ready'].includes(normalized)) return 'available';
+
+    if (
+      [
+        'busy',
+        'on_call',
+        'in_call',
+        'in call',
+        'calling',
+        'oncall',
+        'on a call',
+        'in_a_call',
+        'on_phone',
+        'on the phone',
+      ].includes(normalized)
+    ) {
+      return 'in_call';
+    }
+
+    if (['offline', 'away', 'do_not_disturb', 'unavailable'].includes(normalized)) return 'unavailable';
+
+    return 'unavailable';
+  };
+
+  useEffect(() => {
+    const webhookEventsUrl = (import.meta.env.VITE_WEBHOOK_EVENTS_URL || 'http://localhost:8787/events/agent-status').trim();
+    if (!webhookEventsUrl) return undefined;
+
+    const source = new EventSource(webhookEventsUrl);
+
+    const applyStatus = (payload) => {
+      if (!payload?.userId || !payload?.availabilityStatus) return;
+      const normalizedStatus = normalizeAvailability(payload.availabilityStatus);
+
+      setAgents((currentAgents) => currentAgents.map((agent) => {
+        if (agent.id !== payload.userId) return agent;
+        return { ...agent, availabilityStatus: normalizedStatus };
+      }));
+    };
+
+    source.addEventListener('snapshot', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!Array.isArray(data?.agents)) return;
+        data.agents.forEach(applyStatus);
+      } catch (error) {
+        console.warn('Failed to parse webhook snapshot event', error);
+      }
+    });
+
+    source.addEventListener('agent-status-updated', (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        applyStatus(payload);
+      } catch (error) {
+        console.warn('Failed to parse webhook status event', error);
+      }
+    });
+
+    source.onerror = () => {
+      console.warn('Webhook status stream disconnected');
+    };
+
+    return () => {
+      source.close();
+    };
+  }, []);
    
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -1411,34 +1483,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       const map = {};
       data.users.forEach(u => map[u.id] = u.name);
       return map;
-    };
-
-    const normalizeAvailability = (status) => {
-      if (!status || typeof status !== 'string') return 'unavailable';
-      const normalized = status.toLowerCase().trim();
-
-      if (['available', 'online', 'ready'].includes(normalized)) return 'available';
-
-      if (
-        [
-          'busy',
-          'on_call',
-          'in_call',
-          'in call',
-          'calling',
-          'oncall',
-          'on a call',
-          'in_a_call',
-          'on_phone',
-          'on the phone',
-        ].includes(normalized)
-      ) {
-        return 'in_call';
-      }
-
-      if (['offline', 'away', 'do_not_disturb', 'unavailable'].includes(normalized)) return 'unavailable';
-
-      return 'unavailable';
     };
 
     const resolveAvailabilityStatus = (availabilityItem) => {
