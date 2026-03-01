@@ -582,6 +582,60 @@ const styles = `
     color: var(--text-primary); 
     text-transform: uppercase; /* ALL CAPS */
   }
+
+  .agent-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .status-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .status-dot.available {
+    background: #22c55e;
+    animation: pulse-status-green 1.8s infinite;
+  }
+
+  .status-dot.in-call {
+    background: #f97316;
+    animation: pulse-status-orange 1.8s infinite;
+  }
+
+  .status-dot.unavailable {
+    background: #ef4444;
+    animation: pulse-status-red 1.8s infinite;
+  }
+
+  .agent-status.available { color: #22c55e; }
+  .agent-status.in-call { color: #f97316; }
+  .agent-status.unavailable { color: #ef4444; }
+
+  @keyframes pulse-status-green {
+    0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.65); }
+    70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+
+  @keyframes pulse-status-orange {
+    0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.65); }
+    70% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+  }
+
+  @keyframes pulse-status-red {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.65); }
+    70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
   .progress-wrapper { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
   
   .progress-track {
@@ -809,6 +863,29 @@ const calculateTargetPace = () => {
   return { id: 'target-pace', name: 'TARGET PACE', dials: targetDials, talkTime: targetTalkSeconds, isTarget: true };
 };
 
+
+const AGENT_STATUS_META = {
+  available: { label: 'Available', className: 'available' },
+  in_call: { label: 'In call', className: 'in-call' },
+  unavailable: { label: 'Unavailable', className: 'unavailable' },
+};
+
+const normalizeAircallStatus = (rawStatus) => {
+  if (!rawStatus) return 'unavailable';
+  const value = String(rawStatus).toLowerCase();
+  if (value.includes('in_call') || value.includes('incall') || value.includes('on_call') || value.includes('busy')) return 'in_call';
+  if (value.includes('available') && !value.includes('unavailable')) return 'available';
+  return 'unavailable';
+};
+
+const resolveAgentStatus = (agent, statusMap) => {
+  if (agent.isTarget) return null;
+  const idKey = String(agent.id || '').toLowerCase();
+  const nameKey = String(agent.name || '').toLowerCase();
+  const status = statusMap[idKey] || statusMap[nameKey] || 'unavailable';
+  return AGENT_STATUS_META[status] || AGENT_STATUS_META.unavailable;
+};
+
 /**
  * COMPONENTS
  */
@@ -955,7 +1032,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
   );
 };
 
-const AgentRow = ({ rank, agent, maxDials, maxTalk }) => {
+const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap }) => {
   const isTarget = agent.isTarget;
   const isWinner = rank === 1 && !isTarget;
   let rowClass = 'agent-row';
@@ -970,6 +1047,7 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk }) => {
   const dialShare = totalScore > 0 ? (dialScore / totalScore) * 100 : 0;
   const talkShare = totalScore > 0 ? (talkScore / totalScore) * 100 : 0;
   const firstName = agent.name.split(' ')[0];
+  const statusMeta = resolveAgentStatus(agent, statusMap);
 
   return (
     <div className={rowClass}>
@@ -979,6 +1057,12 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk }) => {
       <div className="agent-info">
         <div className="agent-name">{firstName}</div>
         {isTarget && <span style={{ fontSize: '1rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#16a34a' }}>Goal</span>}
+        {!isTarget && statusMeta && (
+          <div className={`agent-status ${statusMeta.className}`}>
+            <span className={`status-dot ${statusMeta.className}`}></span>
+            <span>{statusMeta.label}</span>
+          </div>
+        )}
       </div>
       <div className="progress-wrapper">
         <div className="progress-track" style={{ width: `${Math.max(scorePercent, 0)}%`, minWidth: totalScore > 0 ? 'fit-content' : '0' }}>
@@ -1063,6 +1147,8 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
   // New Booking State
   const [bookings, setBookings] = useState([]);
+  const [agentStatuses, setAgentStatuses] = useState({});
+  const webhookRegistered = useRef(false);
   
   // ElevenLabs State
   const announcedEventIds = useRef(new Set());
@@ -1073,6 +1159,67 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (apiId === 'demo') return undefined;
+
+    const eventSource = new EventSource('/api/aircall/stream');
+
+    eventSource.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        if (parsed.type === 'snapshot' && parsed.statuses) {
+          setAgentStatuses((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(parsed.statuses).map(([k, v]) => [k, normalizeAircallStatus(v?.status)])) }));
+          return;
+        }
+
+        if (parsed.type === 'status_update') {
+          const nextStatus = normalizeAircallStatus(parsed.status);
+          const nextEntries = {};
+          if (parsed.agent?.id !== null && parsed.agent?.id !== undefined) nextEntries[String(parsed.agent.id).toLowerCase()] = nextStatus;
+          if (parsed.agent?.name) nextEntries[String(parsed.agent.name).toLowerCase()] = nextStatus;
+          setAgentStatuses((prev) => ({ ...prev, ...nextEntries }));
+        }
+      } catch (error) {
+        console.error('Failed to parse webhook stream payload', error);
+      }
+    };
+
+    eventSource.onerror = () => {
+      setFetchStatus('Waiting for Aircall webhook stream...');
+    };
+
+    return () => eventSource.close();
+  }, [apiId]);
+
+  useEffect(() => {
+    if (apiId === 'demo' || webhookRegistered.current) return;
+    const storedUrl = localStorage.getItem('aircallWebhookBaseUrl');
+    const publicWebhookUrl = storedUrl || window.prompt('Enter your public base URL (e.g. https://your-domain.com) so Aircall can deliver webhooks:');
+    if (!publicWebhookUrl) return;
+    localStorage.setItem('aircallWebhookBaseUrl', publicWebhookUrl);
+
+    const register = async () => {
+      try {
+        const res = await fetch('/api/aircall/register-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiId, apiToken, publicWebhookUrl }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || 'Webhook registration failed');
+
+        webhookRegistered.current = true;
+        notify('Aircall webhook stream connected.', 'success');
+      } catch (error) {
+        console.error(error);
+        notify(`Webhook setup failed: ${error.message}`, 'error');
+      }
+    };
+
+    register();
+  }, [apiId, apiToken, notify]);
 
   const handleRefresh = () => {
     manualRefresh.current = true;
@@ -1335,6 +1482,14 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           const activeMocks = mocks.filter(agent => agent.dials > 0 || agent.talkTime > 0);
           const target = calculateTargetPace();
           const combined = [...activeMocks, target].sort((a,b) => calculateScore(b.dials, b.talkTime) - calculateScore(a.dials, a.talkTime));
+          const choices = ['available', 'in_call', 'unavailable'];
+          const demoStatuses = {};
+          activeMocks.forEach((agent) => {
+            const value = choices[Math.floor(Math.random() * choices.length)];
+            demoStatuses[String(agent.id).toLowerCase()] = value;
+            demoStatuses[String(agent.name).toLowerCase()] = value;
+          });
+          setAgentStatuses(demoStatuses);
           setAgents(combined);
           setBookings(generateMockBookings());
           setLoading(false); 
@@ -1428,6 +1583,13 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
               stats[call.user.id].talkTime += (call.duration || 0);
             }
         });
+
+        const statusSeed = {};
+        Object.values(stats).forEach((agent) => {
+          statusSeed[String(agent.id).toLowerCase()] = agentStatuses[String(agent.id).toLowerCase()] || 'unavailable';
+          statusSeed[String(agent.name).toLowerCase()] = agentStatuses[String(agent.name).toLowerCase()] || 'unavailable';
+        });
+        if (isMounted) setAgentStatuses(prev => ({ ...statusSeed, ...prev }));
 
         const activeAgents = Object.values(stats).filter(agent => agent.dials > 0 || agent.talkTime > 0);
         const targetPaceAgent = calculateTargetPace();
@@ -1695,7 +1857,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
             <div>
               {agents.map((agent, index) => (
-                <AgentRow key={agent.id} rank={index + 1} agent={agent} maxDials={maxDials} maxTalk={maxTalk} />
+                <AgentRow key={agent.id} rank={index + 1} agent={agent} maxDials={maxDials} maxTalk={maxTalk} statusMap={agentStatuses} />
               ))}
             </div>
           </div>
