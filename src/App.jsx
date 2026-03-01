@@ -434,14 +434,14 @@ const styles = `
   }
 
   .upcoming-summary-total-number {
-    font-size: 2.2rem;
+    font-size: 2.5rem;
     font-weight: 900;
     color: var(--accent-orange);
     line-height: 1;
   }
 
   .upcoming-summary-total-label {
-    font-size: 0.7rem;
+    font-size: 1rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-secondary);
