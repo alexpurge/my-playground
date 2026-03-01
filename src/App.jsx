@@ -1567,18 +1567,16 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           <div className="bookings-list">
              <div className="upcoming-summary-card">
                 <div className="upcoming-summary-content">
-                  <h3 className="upcoming-summary-title">Upcoming</h3>
-                  <div className="upcoming-summary-reps">
-                    {upcomingHourRepNames.length > 0 ? (
-                      upcomingHourRepNames.map((repName) => (
+                  <h3 className="upcoming-summary-title">UPCOMING</h3>
+                  {upcomingHourRepNames.length > 0 && (
+                    <div className="upcoming-summary-reps">
+                      {upcomingHourRepNames.map((repName) => (
                         <span key={repName} className="upcoming-summary-rep-pill">
                           {repName} ({upcomingHourRepBookingCounts[repName]})
                         </span>
-                      ))
-                    ) : (
-                      <span className="upcoming-summary-rep-pill">No reps in next hour</span>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="upcoming-summary-total">
                   <div className="upcoming-summary-total-number">{upcomingHourBookings.length}</div>
