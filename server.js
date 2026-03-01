@@ -91,18 +91,66 @@ const resolvePublicWebhookUrl = (req, providedUrl) => {
 };
 
 const registerWebhook = async ({ apiId, apiToken, publicWebhookUrl }) => {
-  const webhookUrl = `${String(publicWebhookUrl).replace(/\/$/, '')}${WEBHOOK_PATH}`;
+  const normalizedInput = String(publicWebhookUrl).trim().replace(/\/$/, '');
+  const webhookUrl = normalizedInput.endsWith(WEBHOOK_PATH)
+    ? normalizedInput
+    : `${normalizedInput}${WEBHOOK_PATH}`;
   const events = ['user.available', 'user.unavailable', 'user.in_call'];
+
+  const authHeader = `Basic ${Buffer.from(`${apiId}:${apiToken}`).toString('base64')}`;
+  const payload = { custom_name: 'Agent Status Stream', url: webhookUrl, events };
+
   const response = await fetch('https://api.aircall.io/v1/webhooks', {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${Buffer.from(`${apiId}:${apiToken}`).toString('base64')}`,
+      Authorization: authHeader,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ url: webhookUrl, events }),
+    body: JSON.stringify(payload),
   });
-  const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, data, webhookUrl, events };
+
+  const text = await response.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text };
+    }
+  }
+
+  if (response.ok) return { ok: true, status: response.status, data, webhookUrl, events };
+
+  // Aircall may return a duplicate/validation error if this webhook already exists.
+  // In that case treat the registration as successful and return the existing record.
+  const duplicateRegistration = text.toLowerCase().includes('already')
+    || text.toLowerCase().includes('taken')
+    || text.toLowerCase().includes('exists');
+
+  if (duplicateRegistration) {
+    const existingRes = await fetch('https://api.aircall.io/v1/webhooks', {
+      method: 'GET',
+      headers: { Authorization: authHeader },
+    });
+
+    const existingPayload = await existingRes.json().catch(() => ({}));
+    const existingWebhooks = existingPayload?.webhooks || existingPayload?.data || [];
+    const existing = Array.isArray(existingWebhooks)
+      ? existingWebhooks.find((webhook) => String(webhook?.url || '').replace(/\/$/, '') === webhookUrl)
+      : null;
+
+    if (existing) {
+      return {
+        ok: true,
+        status: 200,
+        data: { webhook: existing, note: 'Webhook already existed and was reused.' },
+        webhookUrl,
+        events,
+      };
+    }
+  }
+
+  return { ok: false, status: response.status, data, webhookUrl, events };
 };
 
 const server = createServer(async (req, res) => {
