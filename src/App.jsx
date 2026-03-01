@@ -461,7 +461,10 @@ const styles = `
     border-left: 4px solid var(--accent-orange);
     min-height: 210px;
     height: auto;
-    display: flex; flex-direction: column; justify-content: space-between;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.75rem;
     box-shadow: 0 20px 40px -28px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
@@ -509,7 +512,7 @@ const styles = `
   }
 
   .booking-rep-row {
-    margin-top: auto;
+    margin-top: 0;
     padding-top: 0.85rem;
     border-top: 1px solid rgba(255, 255, 255, 0.15);
     display: flex;
@@ -549,6 +552,15 @@ const styles = `
   }
 
   .booking-open-event-button { margin-left: auto; }
+
+  .icon-action-button svg,
+  .booking-open-event-button svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    display: block;
+    stroke: currentColor;
+    flex-shrink: 0;
+  }
 
   .icon-action-button:hover,
   .booking-open-event-button:hover {
