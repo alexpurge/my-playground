@@ -61,6 +61,35 @@ const parseBody = (req) => new Promise((resolve, reject) => {
   req.on('error', reject);
 });
 
+
+const resolvePublicWebhookUrl = (req, providedUrl) => {
+  if (providedUrl) return String(providedUrl).trim();
+
+  if (process.env.PUBLIC_WEBHOOK_BASE_URL) return String(process.env.PUBLIC_WEBHOOK_BASE_URL).trim();
+
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const forwardedHost = req.headers['x-forwarded-host'];
+  if (forwardedProto && forwardedHost) return `${forwardedProto}://${forwardedHost}`;
+
+  const origin = req.headers.origin;
+  if (origin) return String(origin).trim();
+
+  const referer = req.headers.referer;
+  if (referer) {
+    try {
+      const parsed = new URL(referer);
+      return parsed.origin;
+    } catch {
+      // ignore malformed referer
+    }
+  }
+
+  const host = req.headers.host;
+  if (host) return `http://${host}`;
+
+  return '';
+};
+
 const registerWebhook = async ({ apiId, apiToken, publicWebhookUrl }) => {
   const webhookUrl = `${String(publicWebhookUrl).replace(/\/$/, '')}${WEBHOOK_PATH}`;
   const events = ['user.available', 'user.unavailable', 'user.in_call'];
@@ -128,9 +157,12 @@ const server = createServer(async (req, res) => {
     try {
       const body = await parseBody(req);
       const { apiId, apiToken, publicWebhookUrl } = body;
-      if (!apiId || !apiToken || !publicWebhookUrl) return writeJson(res, 400, { ok: false, message: 'apiId, apiToken and publicWebhookUrl are required.' });
+      if (!apiId || !apiToken) return writeJson(res, 400, { ok: false, message: 'apiId and apiToken are required.' });
 
-      const registration = await registerWebhook({ apiId, apiToken, publicWebhookUrl });
+      const resolvedPublicWebhookUrl = resolvePublicWebhookUrl(req, publicWebhookUrl);
+      if (!resolvedPublicWebhookUrl) return writeJson(res, 400, { ok: false, message: 'Could not determine a webhook base URL. Set PUBLIC_WEBHOOK_BASE_URL or provide publicWebhookUrl.' });
+
+      const registration = await registerWebhook({ apiId, apiToken, publicWebhookUrl: resolvedPublicWebhookUrl });
       if (!registration.ok) return writeJson(res, registration.status, { ok: false, message: 'Failed to register webhook with Aircall.', details: registration.data });
       return writeJson(res, 200, { ok: true, webhook: registration.data, webhookUrl: registration.webhookUrl, events: registration.events });
     } catch (error) {
