@@ -1,7 +1,9 @@
+import crypto from 'node:crypto';
 import http from 'node:http';
 
 const PORT = Number(process.env.PORT || 8787);
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.AIRCALL_WEBHOOK_SECRET || '';
+const AIRCALL_SIGNING_SECRET = process.env.AIRCALL_SIGNING_SECRET || '';
 
 const clients = new Set();
 const latestStatuses = new Map();
@@ -10,7 +12,21 @@ const normalizeAvailability = (status) => {
   if (!status || typeof status !== 'string') return 'unavailable';
   const normalized = status.toLowerCase().trim();
 
-  if (['available', 'online', 'ready'].includes(normalized)) return 'available';
+  if (
+    [
+      'available',
+      'online',
+      'ready',
+      'open',
+      'idle',
+      'waiting',
+      'free',
+      'logged_in',
+      'connected',
+    ].includes(normalized)
+  ) {
+    return 'available';
+  }
 
   if (
     [
@@ -24,6 +40,10 @@ const normalizeAvailability = (status) => {
       'in_a_call',
       'on_phone',
       'on the phone',
+      'ringing',
+      'after_call_work',
+      'wrap_up',
+      'in conversation',
     ].includes(normalized)
   ) {
     return 'in_call';
@@ -32,15 +52,17 @@ const normalizeAvailability = (status) => {
   return 'unavailable';
 };
 
-const readJsonBody = async (req) => {
+const readRawBody = async (req) => {
   const chunks = [];
   for await (const chunk of req) {
     chunks.push(chunk);
   }
+  return Buffer.concat(chunks);
+};
 
-  if (!chunks.length) return {};
-  const raw = Buffer.concat(chunks).toString('utf8');
-  return JSON.parse(raw);
+const parseJson = (rawBodyBuffer) => {
+  if (!rawBodyBuffer.length) return {};
+  return JSON.parse(rawBodyBuffer.toString('utf8'));
 };
 
 const sendSse = (res, event, data) => {
@@ -54,27 +76,72 @@ const broadcast = (event, payload) => {
   }
 };
 
+const isValidSignature = (rawBodyBuffer, incomingSignature, signingSecret) => {
+  if (!signingSecret) return true;
+  if (!incomingSignature) return false;
+
+  const expectedHex = crypto.createHmac('sha256', signingSecret).update(rawBodyBuffer).digest('hex');
+  const expectedBase64 = crypto.createHmac('sha256', signingSecret).update(rawBodyBuffer).digest('base64');
+
+  const candidates = [incomingSignature, incomingSignature.replace(/^sha256=/i, '')];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+
+    const compare = (value) => {
+      const a = Buffer.from(candidate);
+      const b = Buffer.from(value);
+      if (a.length !== b.length) return false;
+      return crypto.timingSafeEqual(a, b);
+    };
+
+    if (compare(expectedHex) || compare(expectedBase64)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const pickFirst = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
+
 const getStatusPayload = (body) => {
-  const userId =
-    body?.data?.user?.id ||
-    body?.data?.user_id ||
-    body?.user?.id ||
-    body?.user_id ||
-    body?.agent?.id ||
-    body?.agent_id;
+  const userId = pickFirst(
+    body?.data?.user?.id,
+    body?.data?.user_id,
+    body?.user?.id,
+    body?.user_id,
+    body?.agent?.id,
+    body?.agent_id,
+    body?.data?.member?.id,
+    body?.data?.member_id,
+    body?.data?.id,
+  );
 
-  const userName =
-    body?.data?.user?.name ||
-    body?.user?.name ||
-    body?.agent?.name ||
-    null;
+  const userName = pickFirst(
+    body?.data?.user?.name,
+    body?.user?.name,
+    body?.agent?.name,
+    body?.data?.member?.name,
+    body?.data?.name,
+    null,
+  );
 
-  const rawStatus =
-    body?.data?.availability_status ||
-    body?.data?.status ||
-    body?.status ||
-    body?.availability_status ||
-    body?.agent?.status;
+  const rawStatus = pickFirst(
+    body?.data?.availability_status,
+    body?.data?.availability,
+    body?.data?.status,
+    body?.status,
+    body?.availability_status,
+    body?.agent?.status,
+    body?.agent?.availability_status,
+    body?.data?.user?.availability_status,
+    body?.data?.user?.status,
+    body?.data?.member?.status,
+    body?.data?.member?.availability_status,
+    body?.data?.old?.status,
+    body?.data?.new?.status,
+  );
 
   if (!userId || !rawStatus) return null;
 
@@ -82,11 +149,13 @@ const getStatusPayload = (body) => {
     userId: String(userId),
     userName,
     availabilityStatus: normalizeAvailability(rawStatus),
-    rawStatus,
+    rawStatus: String(rawStatus),
     sourceEvent: body?.event || body?.type || 'unknown',
     updatedAt: new Date().toISOString(),
   };
 };
+
+const isWebhookPath = (pathname) => ['/webhooks/aircall/status', '/webhooks/aircall'].includes(pathname);
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -106,7 +175,6 @@ const server = http.createServer(async (req, res) => {
     });
 
     res.write(': connected\n\n');
-
     clients.add(res);
 
     if (latestStatuses.size) {
@@ -125,22 +193,30 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, X-Webhook-Secret',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Webhook-Secret, X-Aircall-Signature',
       'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
     });
     res.end();
     return;
   }
 
-  if (req.method === 'POST' && url.pathname === '/webhooks/aircall/status') {
+  if (req.method === 'POST' && isWebhookPath(url.pathname)) {
     try {
+      const rawBodyBuffer = await readRawBody(req);
+
       if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
         res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         res.end(JSON.stringify({ error: 'Invalid webhook secret' }));
         return;
       }
 
-      const body = await readJsonBody(req);
+      if (!isValidSignature(rawBodyBuffer, req.headers['x-aircall-signature'], AIRCALL_SIGNING_SECRET)) {
+        res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ error: 'Invalid Aircall signature' }));
+        return;
+      }
+
+      const body = parseJson(rawBodyBuffer);
       const payload = getStatusPayload(body);
 
       if (!payload) {
