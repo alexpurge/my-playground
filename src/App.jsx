@@ -370,24 +370,32 @@ const styles = `
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.75rem;
   }
 
   .upcoming-summary-title {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-secondary);
+    font-size: 1.75rem;
+    color: var(--text-primary);
     font-weight: 800;
+    margin: 0;
+    line-height: 1;
   }
 
   .upcoming-summary-reps {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.3;
-    word-break: break-word;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .upcoming-summary-rep-pill {
+    background: #262626;
+    color: white;
+    padding: 0.5rem 1.25rem;
+    border-radius: 2rem;
+    font-weight: 900;
+    font-size: 1.2rem;
+    border: 1px solid #404040;
+    line-height: 1;
   }
 
   .upcoming-summary-total {
@@ -1396,11 +1404,14 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     return eventTime >= currentTime.getTime() && eventTime <= oneHourFromNow;
   });
 
-  const upcomingHourRepNames = [...new Set(
-    upcomingHourBookings
-      .map((booking) => getRepName(booking.creator?.email || booking.organizer?.email))
-      .filter(Boolean)
-  )];
+  const upcomingHourRepBookingCounts = upcomingHourBookings.reduce((acc, booking) => {
+    const repName = getRepName(booking.creator?.email || booking.organizer?.email);
+    if (!repName) return acc;
+    acc[repName] = (acc[repName] || 0) + 1;
+    return acc;
+  }, {});
+
+  const upcomingHourRepNames = Object.keys(upcomingHourRepBookingCounts);
 
   // NEW: Speak Next Hour Button Handler
   const handleSpeakNextHour = () => {
@@ -1476,8 +1487,18 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           <div className="bookings-list">
              <div className="upcoming-summary-card">
                 <div className="upcoming-summary-content">
-                  <div className="upcoming-summary-title">Upcoming</div>
-                  <p className="upcoming-summary-reps">{upcomingHourRepNames.join(', ')}</p>
+                  <h3 className="upcoming-summary-title">Upcoming</h3>
+                  <div className="upcoming-summary-reps">
+                    {upcomingHourRepNames.length > 0 ? (
+                      upcomingHourRepNames.map((repName) => (
+                        <span key={repName} className="upcoming-summary-rep-pill">
+                          {repName} ({upcomingHourRepBookingCounts[repName]})
+                        </span>
+                      ))
+                    ) : (
+                      <span className="upcoming-summary-rep-pill">No reps in next hour</span>
+                    )}
+                  </div>
                 </div>
                 <div className="upcoming-summary-total">
                   <div className="upcoming-summary-total-number">{upcomingHourBookings.length}</div>
