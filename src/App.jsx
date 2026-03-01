@@ -454,15 +454,13 @@ const styles = `
     overflow: hidden;
     border-radius: 0.75rem;
     padding: 1.25rem; 
-    background: linear-gradient(145deg, rgba(60, 31, 15, 0.7) 0%, rgba(22, 22, 22, 0.72) 60%, rgba(10, 10, 10, 0.76) 100%);
+    background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-left: 4px solid rgba(234, 88, 12, 0.8); 
+    border-left: 4px solid var(--accent-orange);
     min-height: auto; 
     height: auto;
     display: flex; flex-direction: column; justify-content: space-between;
     box-shadow: 0 20px 40px -28px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
 
@@ -520,16 +518,14 @@ const styles = `
   }
 
   .booking-rep-chip {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+    background: linear-gradient(135deg, rgba(65, 33, 17, 0.92), rgba(37, 37, 37, 0.88));
     color: #fff;
     padding: 0.5rem 1.25rem;
     border-radius: 2rem;
     font-weight: 900;
     font-size: 1.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 8px 16px -14px rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(251, 146, 60, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 12px -10px rgba(0, 0, 0, 0.75);
     line-height: 1;
   }
 
