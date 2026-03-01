@@ -1207,7 +1207,16 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           body: JSON.stringify({ apiId, apiToken, publicWebhookUrl }),
         });
 
-        const data = await res.json();
+        const raw = await res.text();
+        let data = {};
+        if (raw) {
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            data = { message: raw };
+          }
+        }
+
         if (!res.ok) throw new Error(data?.message || 'Webhook registration failed');
 
         webhookRegistered.current = true;
