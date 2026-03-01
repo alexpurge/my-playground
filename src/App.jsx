@@ -575,12 +575,42 @@ const styles = `
     color: white;
   }
 
-  .agent-info { width: 14.4rem; flex-shrink: 0; overflow: hidden; }
+  .agent-info { width: 14.4rem; flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; gap: 0.35rem; }
   .agent-name { 
     font-size: 2rem; font-weight: 900; /* EXTRA BOLD */
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
     color: var(--text-primary); 
     text-transform: uppercase; /* ALL CAPS */
+  }
+  .agent-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot.available {
+    background: #16a34a;
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+    animation: pulse-green 2s infinite;
+  }
+  .status-dot.in-call {
+    background: #f59e0b;
+  }
+  .status-dot.unavailable {
+    background: #ef4444;
+  }
+  .agent-status-label {
+    line-height: 1;
   }
 
   .progress-wrapper { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
@@ -752,8 +782,10 @@ const styles = `
       padding: 0.75rem;
     }
     .rank-badge { width: 3rem; height: 3rem; font-size: 1.25rem; }
-    .agent-info { width: 8rem; }
+    .agent-info { width: 8rem; gap: 0.2rem; }
     .agent-name { font-size: 1.2rem; }
+    .agent-status { font-size: 0.62rem; gap: 0.25rem; }
+    .status-dot { width: 7px; height: 7px; }
     .score-box { width: 5rem; padding-left: 0.5rem; }
     .total-score { font-size: 1.75rem; }
     .stat-badge { font-size: 1rem; width: 3rem; padding: 0.25rem; }
@@ -969,6 +1001,13 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk }) => {
   const dialShare = totalScore > 0 ? (dialScore / totalScore) * 100 : 0;
   const talkShare = totalScore > 0 ? (talkScore / totalScore) * 100 : 0;
   const firstName = agent.name.split(' ')[0];
+  const hasAvailability = !isTarget;
+  const availabilityConfig = {
+    available: { label: 'Available', className: 'available' },
+    in_call: { label: 'In Call', className: 'in-call' },
+    unavailable: { label: 'Unavailable', className: 'unavailable' },
+  };
+  const availability = availabilityConfig[agent.availabilityStatus] || availabilityConfig.unavailable;
 
   return (
     <div className={rowClass}>
@@ -977,6 +1016,12 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk }) => {
       </div>
       <div className="agent-info">
         <div className="agent-name">{firstName}</div>
+        {hasAvailability && (
+          <div className="agent-status">
+            <span className={`status-dot ${availability.className}`}></span>
+            <span className="agent-status-label">{availability.label}</span>
+          </div>
+        )}
         {isTarget && <span style={{ fontSize: '1rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#16a34a' }}>Goal</span>}
       </div>
       <div className="progress-wrapper">
@@ -1354,6 +1399,39 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       return map;
     };
 
+    const normalizeAvailability = (status) => {
+      if (!status || typeof status !== 'string') return 'unavailable';
+      const normalized = status.toLowerCase();
+      if (normalized === 'available') return 'available';
+      if (normalized === 'busy' || normalized === 'on_call' || normalized === 'in_call' || normalized === 'in call') return 'in_call';
+      return 'unavailable';
+    };
+
+    const fetchAvailabilityByUser = async (userIds) => {
+      if (!userIds.length) return {};
+
+      try {
+        const res = await fetch(`${baseUrl}/users/availabilities`, { headers });
+        if (!res.ok) {
+          console.warn(`Availability Fetch: ${res.status}`);
+          return {};
+        }
+
+        const data = await res.json();
+        const availabilities = Array.isArray(data?.availabilities) ? data.availabilities : [];
+
+        return availabilities.reduce((acc, item) => {
+          const id = String(item?.user_id || item?.user?.id || '');
+          if (!id || !userIds.includes(id)) return acc;
+          acc[id] = normalizeAvailability(item?.status);
+          return acc;
+        }, {});
+      } catch (availabilityError) {
+        console.warn('Could not fetch user availabilities', availabilityError);
+        return {};
+      }
+    };
+
     const syncCalls = async (fullSync = false) => {
       try {
         if (!isMounted) return;
@@ -1414,7 +1492,13 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
               return; 
             }
           }
-          stats[uid] = { id: uid, name: userMap[uid], dials: 0, talkTime: 0, isTarget: false };
+          stats[uid] = { id: uid, name: userMap[uid], dials: 0, talkTime: 0, isTarget: false, availabilityStatus: 'unavailable' };
+        });
+
+        const trackedUserIds = Object.keys(stats);
+        const availabilityByUser = await fetchAvailabilityByUser(trackedUserIds);
+        trackedUserIds.forEach((uid) => {
+          stats[uid].availabilityStatus = availabilityByUser[uid] || 'unavailable';
         });
 
         callsCache.current.forEach(call => {
