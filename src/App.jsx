@@ -55,7 +55,7 @@ const normalizeAgentStatusFromWebhook = (inputStatus) => {
 
   if (['available', 'online', 'ready'].includes(normalized)) return 'available';
 
-  if (['busy', 'in_call', 'in call', 'on_call', 'on a call', 'calling', 'on_phone', 'on the phone'].includes(normalized)) {
+  if (['busy', 'in_call', 'in call', 'on_call', 'on a call', 'calling', 'on_phone', 'on the phone', 'ringing', 'after_call_work', 'wrap_up'].includes(normalized)) {
     return 'in_call';
   }
 
@@ -1147,11 +1147,16 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     const source = new EventSource(webhookEventsUrl);
 
     const applyStatus = (payload) => {
-      if (!payload?.userId || !payload?.availabilityStatus) return;
+      if (!payload?.availabilityStatus) return;
       const normalizedStatus = normalizeAgentStatusFromWebhook(payload.availabilityStatus);
+      const payloadUserId = payload?.userId !== undefined && payload?.userId !== null ? String(payload.userId) : null;
+      const payloadUserName = payload?.userName ? String(payload.userName).trim().toLowerCase() : null;
 
       setAgents((currentAgents) => currentAgents.map((agent) => {
-        if (agent.id !== payload.userId) return agent;
+        const matchesById = payloadUserId ? String(agent.id) === payloadUserId : false;
+        const matchesByName = payloadUserName ? String(agent.name || '').trim().toLowerCase() === payloadUserName : false;
+
+        if (!matchesById && !matchesByName) return agent;
         return { ...agent, availabilityStatus: normalizedStatus };
       }));
     };
