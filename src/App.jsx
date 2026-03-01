@@ -366,7 +366,7 @@ const styles = `
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
-    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.55);
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.45);
     animation: upcoming-card-background-pulse 2s infinite;
   }
 
@@ -377,9 +377,9 @@ const styles = `
   }
 
   @keyframes upcoming-card-background-pulse {
-    0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.55); }
-    70% { box-shadow: 0 0 0 14px rgba(22, 163, 74, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.45); }
+    70% { box-shadow: 0 0 0 14px rgba(234, 88, 12, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0); }
   }
 
   .upcoming-summary-content {
