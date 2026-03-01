@@ -585,32 +585,41 @@ const styles = `
   .agent-status {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.95rem;
+    gap: 0.55rem;
+    font-size: 1.05rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-secondary);
   }
   .status-dot {
-    width: 8px;
-    height: 8px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     flex-shrink: 0;
+    box-shadow: 0 0 0 0 rgba(var(--status-rgb), 0.7);
+    animation: pulse-status 2s infinite;
   }
   .status-dot.available {
+    --status-rgb: 22, 163, 74;
     background: #16a34a;
-    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
-    animation: pulse-green 2s infinite;
   }
   .status-dot.in-call {
+    --status-rgb: 245, 158, 11;
     background: #f59e0b;
   }
   .status-dot.unavailable {
+    --status-rgb: 239, 68, 68;
     background: #ef4444;
   }
   .agent-status-label {
     line-height: 1;
+  }
+
+  @keyframes pulse-status {
+    0% { box-shadow: 0 0 0 0 rgba(var(--status-rgb), 0.7); }
+    70% { box-shadow: 0 0 0 6px rgba(var(--status-rgb), 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--status-rgb), 0); }
   }
 
   .progress-wrapper { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
@@ -784,8 +793,8 @@ const styles = `
     .rank-badge { width: 3rem; height: 3rem; font-size: 1.25rem; }
     .agent-info { width: 8rem; gap: 0.2rem; }
     .agent-name { font-size: 1.2rem; }
-    .agent-status { font-size: 0.62rem; gap: 0.25rem; }
-    .status-dot { width: 7px; height: 7px; }
+    .agent-status { font-size: 0.8rem; gap: 0.35rem; }
+    .status-dot { width: 10px; height: 10px; }
     .score-box { width: 5rem; padding-left: 0.5rem; }
     .total-score { font-size: 1.75rem; }
     .stat-badge { font-size: 1rem; width: 3rem; padding: 0.25rem; }
@@ -1126,7 +1135,12 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const generateMockData = () => {
     const names = ['Oscar Wilde', 'Declan Rice', 'Adam Smith', 'Alex Morgan', 'Mike Ross'];
     return names.map(name => ({
-      id: name, name: name, dials: Math.floor(Math.random() * 80) + 20, talkTime: Math.floor(Math.random() * 8000) + 1200, isTarget: false
+      id: name,
+      name: name,
+      dials: Math.floor(Math.random() * 80) + 20,
+      talkTime: Math.floor(Math.random() * 8000) + 1200,
+      isTarget: false,
+      availabilityStatus: ['available', 'in_call', 'unavailable'][Math.floor(Math.random() * 3)],
     }));
   };
 
@@ -1401,9 +1415,46 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
     const normalizeAvailability = (status) => {
       if (!status || typeof status !== 'string') return 'unavailable';
-      const normalized = status.toLowerCase();
-      if (normalized === 'available') return 'available';
-      if (normalized === 'busy' || normalized === 'on_call' || normalized === 'in_call' || normalized === 'in call') return 'in_call';
+      const normalized = status.toLowerCase().trim();
+
+      if (['available', 'online', 'ready'].includes(normalized)) return 'available';
+
+      if (
+        [
+          'busy',
+          'on_call',
+          'in_call',
+          'in call',
+          'calling',
+          'oncall',
+          'on a call',
+          'in_a_call',
+          'on_phone',
+          'on the phone',
+        ].includes(normalized)
+      ) {
+        return 'in_call';
+      }
+
+      if (['offline', 'away', 'do_not_disturb', 'unavailable'].includes(normalized)) return 'unavailable';
+
+      return 'unavailable';
+    };
+
+    const resolveAvailabilityStatus = (availabilityItem) => {
+      const isAvailable = availabilityItem?.is_available;
+      const status = availabilityItem?.status;
+
+      if (typeof status === 'string') {
+        const normalized = normalizeAvailability(status);
+        if (normalized === 'in_call') return 'in_call';
+        if (normalized === 'available' && isAvailable === false) return 'unavailable';
+        return normalized;
+      }
+
+      if (isAvailable === true) return 'available';
+      if (isAvailable === false) return 'unavailable';
+
       return 'unavailable';
     };
 
@@ -1423,7 +1474,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
         return availabilities.reduce((acc, item) => {
           const id = String(item?.user_id || item?.user?.id || '');
           if (!id || !userIds.includes(id)) return acc;
-          acc[id] = normalizeAvailability(item?.status);
+          acc[id] = resolveAvailabilityStatus(item);
           return acc;
         }, {});
       } catch (availabilityError) {
