@@ -8,8 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "node server.js",
-    "webhook:server": "node server.js"
+    "server": "node server.js"
   },
   "dependencies": {
     "react": "^19.2.0",

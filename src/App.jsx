@@ -1153,6 +1153,8 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   // ElevenLabs State
   const announcedEventIds = useRef(new Set());
 
+  const callsCache = useRef(new Map()); 
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -1304,6 +1306,24 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     } catch (e) {
       console.error("ElevenLabs Error:", e);
       notify("Failed to generate speech. Check API Key.", 'error');
+    }
+  };
+
+  const fetchPage = async (page, fromDate, headers, baseUrl) => {
+    const url = `${baseUrl}/calls?from=${fromDate}&order=desc&per_page=50&page=${page}`;
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+         if (res.status === 429) {
+           console.warn("Rate limit hit");
+           notify("Aircall Rate Limit Reached.", 'error');
+           return null;
+         }
+         throw new Error(`API Error ${res.status}`);
+      }
+      return await res.json();
+    } catch (err) {
+      throw err;
     }
   };
 
@@ -1490,26 +1510,97 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       return;
     } 
 
-    const syncCalls = async () => {
+    const headers = { 'Authorization': 'Basic ' + btoa(`${apiId}:${apiToken}`), 'Content-Type': 'application/json' };
+    const baseUrl = 'https://api.aircall.io/v1';
+    const startOfDay = Math.floor(new Date().setHours(0,0,0,0) / 1000);
+
+    const fetchUsers = async () => {
+      const res = await fetch(`${baseUrl}/users?per_page=50`, { headers });
+      if (!res.ok) throw new Error(`Users Fetch: ${res.status}`);
+      const data = await res.json();
+      const map = {};
+      data.users.forEach(u => map[u.id] = u.name);
+      return map;
+    };
+
+    const syncCalls = async (fullSync = false) => {
       try {
         if (!isMounted) return;
-        setFetchStatus('Updating webhook metrics...');
-
+        setFetchStatus(fullSync ? 'Fetching daily history...' : 'Updating live feed...');
+        
+        // REFRESH CALENDAR - handled by dependency array now
+        
         if (!loading) setErrorState(null); 
+        
+        const userMap = await fetchUsers(); 
+        
+        let allowedUserIds = null;
+        try {
+           const teamsRes = await fetch(`${baseUrl}/teams`, { headers });
+           if (teamsRes.ok) {
+             const teamsData = await teamsRes.json();
+             const salesTeam = teamsData.teams.find(t => t.name.toLowerCase().includes('sales'));
+             if (salesTeam && salesTeam.users) {
+               allowedUserIds = new Set(salesTeam.users.map(u => String(u.id)));
+             }
+           }
+        } catch (e) {
+           console.warn("Could not fetch teams for filtering", e);
+        }
+        
+        let page = 1;
+        let keepFetching = true;
 
-        const response = await fetch('/api/aircall/metrics/daily');
-        if (!response.ok) throw new Error(`Webhook metrics fetch failed (${response.status})`);
-        const payload = await response.json();
-        const stats = payload?.agents || [];
+        while (keepFetching) {
+          if (!isMounted) break;
+          if (loading && fullSync) setFetchStatus(`Retrieving page ${page}...`);
+
+          const data = await fetchPage(page, startOfDay, headers, baseUrl);
+          
+          if (!data && loading && fullSync) {
+            throw new Error("Rate Limit Exceeded during initial load. Please wait.");
+          }
+          if (!data) break; 
+
+          data.calls.forEach(call => { callsCache.current.set(call.id, call); });
+
+          if (fullSync) {
+            if (data.meta && data.meta.next_page_link) {
+               page++;
+               await new Promise(r => setTimeout(r, 200)); 
+            } else {
+               keepFetching = false;
+            }
+          } else {
+            keepFetching = false; 
+          }
+        }
+
+        const stats = {};
+        Object.keys(userMap).forEach(uid => {
+          if (allowedUserIds) {
+            if (!allowedUserIds.has(uid)) {
+              return; 
+            }
+          }
+          stats[uid] = { id: uid, name: userMap[uid], dials: 0, talkTime: 0, isTarget: false };
+        });
+
+        callsCache.current.forEach(call => {
+            if (call.user && stats[call.user.id] && (call.direction === 'inbound' || call.direction === 'outbound')) {
+              stats[call.user.id].dials += 1;
+              stats[call.user.id].talkTime += (call.duration || 0);
+            }
+        });
 
         const statusSeed = {};
-        stats.forEach((agent) => {
+        Object.values(stats).forEach((agent) => {
           statusSeed[String(agent.id).toLowerCase()] = agentStatuses[String(agent.id).toLowerCase()] || 'unavailable';
           statusSeed[String(agent.name).toLowerCase()] = agentStatuses[String(agent.name).toLowerCase()] || 'unavailable';
         });
         if (isMounted) setAgentStatuses(prev => ({ ...statusSeed, ...prev }));
 
-        const activeAgents = stats.filter(agent => agent.dials > 0 || agent.talkTime > 0);
+        const activeAgents = Object.values(stats).filter(agent => agent.dials > 0 || agent.talkTime > 0);
         const targetPaceAgent = calculateTargetPace();
         const finalList = [ ...activeAgents, targetPaceAgent ].sort((a,b) => calculateScore(b.dials, b.talkTime) - calculateScore(a.dials, a.talkTime));
 
@@ -1536,8 +1627,8 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       }
     };
 
-    syncCalls();
-    const intervalId = setInterval(() => { syncCalls(); }, 15000);
+    syncCalls(true);
+    const intervalId = setInterval(() => { syncCalls(false); }, 30000);
 
     return () => { isMounted = false; clearInterval(intervalId); };
   }, [apiId, apiToken, googleToken, refreshTrigger]); // Trigger refresh on refreshTrigger change
