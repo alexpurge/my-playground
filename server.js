@@ -66,6 +66,7 @@ const resolvePublicWebhookUrl = (req, providedUrl) => {
   if (providedUrl) return String(providedUrl).trim();
 
   if (process.env.PUBLIC_WEBHOOK_BASE_URL) return String(process.env.PUBLIC_WEBHOOK_BASE_URL).trim();
+  if (process.env.PUBLIC_WEBHOOK_URL) return String(process.env.PUBLIC_WEBHOOK_URL).trim();
 
   const forwardedProto = req.headers['x-forwarded-proto'];
   const forwardedHost = req.headers['x-forwarded-host'];
@@ -95,62 +96,79 @@ const registerWebhook = async ({ apiId, apiToken, publicWebhookUrl }) => {
   const webhookUrl = normalizedInput.endsWith(WEBHOOK_PATH)
     ? normalizedInput
     : `${normalizedInput}${WEBHOOK_PATH}`;
-  const events = ['user.available', 'user.unavailable', 'user.in_call'];
+
+  const eventSets = [
+    ['user.opened', 'user.closed', 'user.connected', 'user.disconnected', 'call.created', 'call.answered', 'call.ended'],
+    ['user.available', 'user.unavailable', 'user.in_call'],
+  ];
 
   const authHeader = `Basic ${Buffer.from(`${apiId}:${apiToken}`).toString('base64')}`;
-  const payload = { custom_name: 'Agent Status Stream', url: webhookUrl, events };
 
-  const response = await fetch('https://api.aircall.io/v1/webhooks', {
-    method: 'POST',
-    headers: {
-      Authorization: authHeader,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  for (const events of eventSets) {
+    const payload = { custom_name: 'Agent Status Stream', url: webhookUrl, events };
 
-  const text = await response.text();
-  let data = {};
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { message: text };
-    }
-  }
-
-  if (response.ok) return { ok: true, status: response.status, data, webhookUrl, events };
-
-  // Aircall may return a duplicate/validation error if this webhook already exists.
-  // In that case treat the registration as successful and return the existing record.
-  const duplicateRegistration = text.toLowerCase().includes('already')
-    || text.toLowerCase().includes('taken')
-    || text.toLowerCase().includes('exists');
-
-  if (duplicateRegistration) {
-    const existingRes = await fetch('https://api.aircall.io/v1/webhooks', {
-      method: 'GET',
-      headers: { Authorization: authHeader },
+    const response = await fetch('https://api.aircall.io/v1/webhooks', {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
 
-    const existingPayload = await existingRes.json().catch(() => ({}));
-    const existingWebhooks = existingPayload?.webhooks || existingPayload?.data || [];
-    const existing = Array.isArray(existingWebhooks)
-      ? existingWebhooks.find((webhook) => String(webhook?.url || '').replace(/\/$/, '') === webhookUrl)
-      : null;
-
-    if (existing) {
-      return {
-        ok: true,
-        status: 200,
-        data: { webhook: existing, note: 'Webhook already existed and was reused.' },
-        webhookUrl,
-        events,
-      };
+    const text = await response.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { message: text };
+      }
     }
+
+    if (response.ok) return { ok: true, status: response.status, data, webhookUrl, events };
+
+    // Aircall may return a duplicate/validation error if this webhook already exists.
+    // In that case treat the registration as successful and return the existing record.
+    const responseText = text.toLowerCase();
+    const duplicateRegistration = responseText.includes('already')
+      || responseText.includes('taken')
+      || responseText.includes('exists');
+
+    if (duplicateRegistration) {
+      const existingRes = await fetch('https://api.aircall.io/v1/webhooks', {
+        method: 'GET',
+        headers: { Authorization: authHeader },
+      });
+
+      const existingPayload = await existingRes.json().catch(() => ({}));
+      const existingWebhooks = existingPayload?.webhooks || existingPayload?.data || [];
+      const existing = Array.isArray(existingWebhooks)
+        ? existingWebhooks.find((webhook) => String(webhook?.url || '').replace(/\/$/, '') === webhookUrl)
+        : null;
+
+      if (existing) {
+        return {
+          ok: true,
+          status: 200,
+          data: { webhook: existing, note: 'Webhook already existed and was reused.' },
+          webhookUrl,
+          events,
+        };
+      }
+    }
+
+    const invalidEvents = responseText.includes('event') && (responseText.includes('invalid') || responseText.includes('unknown'));
+    if (!invalidEvents) return { ok: false, status: response.status, data, webhookUrl, events };
   }
 
-  return { ok: false, status: response.status, data, webhookUrl, events };
+  return {
+    ok: false,
+    status: 422,
+    data: { message: 'Failed to register webhook with all supported event combinations.' },
+    webhookUrl,
+    events: eventSets.flat(),
+  };
 };
 
 const server = createServer(async (req, res) => {
@@ -204,7 +222,9 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/api/aircall/register-webhook') {
     try {
       const body = await parseBody(req);
-      const { apiId, apiToken, publicWebhookUrl } = body;
+      const apiId = body.apiId || process.env.AIRCALL_API_ID;
+      const apiToken = body.apiToken || body.apiKey || process.env.AIRCALL_API_KEY;
+      const { publicWebhookUrl } = body;
       if (!apiId || !apiToken) return writeJson(res, 400, { ok: false, message: 'apiId and apiToken are required.' });
 
       const resolvedPublicWebhookUrl = resolvePublicWebhookUrl(req, publicWebhookUrl);
