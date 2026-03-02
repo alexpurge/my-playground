@@ -453,9 +453,9 @@ const styles = `
   .booking-card {
     position: relative;
     isolation: isolate;
-    overflow: hidden;
+    overflow: visible;
     border-radius: 0.75rem;
-    padding: 1.25rem 1.25rem 2.15rem;
+    padding: 1.25rem;
     background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
     border: 1px solid rgba(255, 255, 255, 0.12);
     height: auto;
@@ -495,7 +495,7 @@ const styles = `
   }
 
   .booking-meta { 
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; 
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; 
   }
   .booking-time { 
     font-size: 1.75rem; color: var(--text-time); font-weight: 900;
@@ -512,12 +512,12 @@ const styles = `
     line-height: 1.2;
     white-space: normal; 
     word-break: break-word;
-    margin: 0.25rem 0 1rem 0;
+    margin: 0.15rem 0 0.45rem 0;
   }
 
   .booking-rep-row {
-    margin-top: auto;
-    padding-top: 0.85rem;
+    margin-top: 0.1rem;
+    padding-top: 0.65rem;
     border-top: 1px solid rgba(255, 255, 255, 0.15);
     display: flex;
     align-items: center;
