@@ -1624,12 +1624,39 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
   const totalBookings = upcomingBookings.length;
 
-  const oneHourFromNow = currentTime.getTime() + (60 * 60 * 1000);
-  const upcomingHourBookings = upcomingBookings.filter((booking) => {
-    if (!booking.start?.dateTime) return false;
-    const eventTime = new Date(booking.start.dateTime).getTime();
-    return eventTime >= currentTime.getTime() && eventTime <= oneHourFromNow;
+  const brisbaneHourKeyFormatter = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Brisbane',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
   });
+
+  const datedUpcomingBookings = upcomingBookings
+    .filter((booking) => booking.start?.dateTime)
+    .map((booking) => ({
+      booking,
+      eventTime: new Date(booking.start.dateTime).getTime(),
+    }))
+    .sort((a, b) => a.eventTime - b.eventTime);
+
+  const currentSummarySlot = datedUpcomingBookings[0] || null;
+  const currentSummaryHourKey = currentSummarySlot
+    ? brisbaneHourKeyFormatter.format(new Date(currentSummarySlot.eventTime))
+    : null;
+
+  const upcomingHourBookings = currentSummaryHourKey
+    ? datedUpcomingBookings
+        .filter(({ eventTime }) => brisbaneHourKeyFormatter.format(new Date(eventTime)) === currentSummaryHourKey)
+        .map(({ booking }) => booking)
+    : [];
+
+  const isOngoingWindow = currentSummarySlot
+    ? currentTime.getTime() >= currentSummarySlot.eventTime && currentTime.getTime() < (currentSummarySlot.eventTime + (20 * 60 * 1000))
+    : false;
+
+  const summaryCardTitle = isOngoingWindow ? 'ONGOING' : 'UPCOMING';
 
   const upcomingHourRepBookingCounts = upcomingHourBookings.reduce((acc, booking) => {
     const repName = getRepName(booking.creator?.email || booking.organizer?.email);
@@ -1713,7 +1740,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           <div className="bookings-list">
              <div className="upcoming-summary-card">
                 <div className="upcoming-summary-content">
-                  <h3 className="upcoming-summary-title">UPCOMING</h3>
+                  <h3 className="upcoming-summary-title">{summaryCardTitle}</h3>
                   {upcomingHourRepNames.length > 0 && (
                     <div className="upcoming-summary-reps">
                       {upcomingHourRepNames.map((repName) => (
