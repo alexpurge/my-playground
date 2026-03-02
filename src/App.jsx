@@ -459,6 +459,7 @@ const styles = `
     background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
     border: 1px solid rgba(255, 255, 255, 0.12);
     height: auto;
+    min-height: 220px;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -516,7 +517,7 @@ const styles = `
   }
 
   .booking-rep-row {
-    margin-top: 0;
+    margin-top: auto;
     padding-top: 0.85rem;
     border-top: 1px solid rgba(255, 255, 255, 0.15);
     display: flex;
@@ -789,10 +790,10 @@ const styles = `
       height: 100%; /* Ensure container fill */
     }
     
-    /* MOBILE BOOKINGS - 40% HEIGHT */
+    /* MOBILE BOOKINGS - GIVE CARDS MORE ROOM */
     .bookings-panel { 
-      flex: 0 0 45%; /* slightly increased from 40% to give breathing room */
-      height: 45%;
+      flex: 0 0 56%;
+      height: 56%;
       min-height: 0; 
       width: 100%;
       border-right: none; 
@@ -800,10 +801,10 @@ const styles = `
       overflow: hidden; /* Constrain panel */
     }
 
-    /* MOBILE LEADERBOARD - 55% HEIGHT */
+    /* MOBILE LEADERBOARD - REMAINING SPACE */
     .leaderboard-panel { 
       flex: 1; /* Takes remaining space */
-      height: 55%;
+      height: 44%;
       min-height: 0;
       width: 100%;
       border-right: none; 
@@ -817,7 +818,7 @@ const styles = `
     }
     
     .bookings-list {
-       padding: 1rem;
+       padding: 1.25rem;
     }
 
     .dashboard-content {
@@ -828,6 +829,7 @@ const styles = `
     .main-title, .bookings-title { font-size: 1.75rem; }
     .booking-summary { font-size: 1.4rem; }
     .booking-time { font-size: 1.4rem; }
+    .booking-rep-chip { font-size: 1.25rem; }
     
     /* HIDE LEGEND ON MOBILE IF TOO CRAMPED */
     .legend-box { display: none; }
