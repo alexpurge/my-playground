@@ -459,7 +459,6 @@ const styles = `
     background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-left: 4px solid var(--accent-orange);
-    min-height: 210px;
     height: auto;
     display: flex;
     flex-direction: column;
