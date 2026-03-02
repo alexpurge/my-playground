@@ -458,7 +458,6 @@ const styles = `
     padding: 1.25rem 1.25rem 1.55rem;
     background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-left: 4px solid var(--accent-orange);
     height: auto;
     display: flex;
     flex-direction: column;
@@ -475,6 +474,12 @@ const styles = `
     background: linear-gradient(130deg, rgba(12, 12, 12, 0.22) 0%, rgba(12, 12, 12, 0.08) 45%, rgba(12, 12, 12, 0) 100%);
     pointer-events: none;
     opacity: 0.55;
+    z-index: 0;
+  }
+
+  .booking-card > * {
+    position: relative;
+    z-index: 1;
   }
 
   [data-theme='light'] .booking-card {
