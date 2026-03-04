@@ -1188,6 +1188,10 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const announcedEventIds = useRef(new Set());
 
   const callsCache = useRef(new Map()); 
+  const syncInFlight = useRef(false);
+  const latestSyncRequestId = useRef(0);
+  const latestAppliedSyncId = useRef(0);
+  const latestCallTimestampSeen = useRef(0);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -1493,6 +1497,13 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     };
 
     const syncCalls = async (fullSync = false) => {
+      if (syncInFlight.current) {
+        return;
+      }
+
+      syncInFlight.current = true;
+      const requestId = ++latestSyncRequestId.current;
+
       try {
         if (!isMounted) return;
         setFetchStatus(fullSync ? 'Fetching daily history...' : 'Updating live feed...');
@@ -1519,6 +1530,21 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
         
         let page = 1;
         let keepFetching = true;
+        let highestTimestampSeen = latestCallTimestampSeen.current;
+        const liveSyncCutoff = latestCallTimestampSeen.current;
+        const isCallNewOrChanged = (call) => {
+          const callTimestamp = Number(call?.updated_at || call?.ended_at || call?.started_at || call?.created_at || 0);
+          const cachedCall = callsCache.current.get(call.id);
+          const cachedTimestamp = Number(cachedCall?.updated_at || cachedCall?.ended_at || cachedCall?.started_at || cachedCall?.created_at || 0);
+
+          if (!cachedCall) return true;
+          if (callTimestamp > cachedTimestamp) return true;
+          if ((call.duration || 0) !== (cachedCall.duration || 0)) return true;
+
+          const callUserId = call?.user?.id ? String(call.user.id) : '';
+          const cachedUserId = cachedCall?.user?.id ? String(cachedCall.user.id) : '';
+          return callUserId !== cachedUserId;
+        };
 
         while (keepFetching) {
           if (!isMounted) break;
@@ -1531,7 +1557,22 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           }
           if (!data) break; 
 
-          data.calls.forEach(call => { callsCache.current.set(call.id, call); });
+          let pageHasNewData = false;
+          let oldestTimestampOnPage = Number.POSITIVE_INFINITY;
+          data.calls.forEach(call => {
+            const callTimestamp = Number(call?.updated_at || call?.ended_at || call?.started_at || call?.created_at || 0);
+            if (callTimestamp > highestTimestampSeen) {
+              highestTimestampSeen = callTimestamp;
+            }
+            if (callTimestamp && callTimestamp < oldestTimestampOnPage) {
+              oldestTimestampOnPage = callTimestamp;
+            }
+
+            if (isCallNewOrChanged(call)) {
+              pageHasNewData = true;
+              callsCache.current.set(call.id, call);
+            }
+          });
 
           if (fullSync) {
             if (data.meta && data.meta.next_page_link) {
@@ -1541,9 +1582,17 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                keepFetching = false;
             }
           } else {
-            keepFetching = false; 
+            const hasNextPage = Boolean(data?.meta?.next_page_link);
+            const reachedKnownHistory = Number.isFinite(oldestTimestampOnPage) && oldestTimestampOnPage <= liveSyncCutoff;
+            keepFetching = hasNextPage && (!reachedKnownHistory || pageHasNewData);
+            if (keepFetching) {
+              page++;
+              await new Promise(r => setTimeout(r, 120));
+            }
           }
         }
+
+        latestCallTimestampSeen.current = Math.max(latestCallTimestampSeen.current, highestTimestampSeen);
 
         const stats = {};
         Object.keys(userMap).forEach(uid => {
@@ -1574,6 +1623,12 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
         const targetPaceAgent = calculateTargetPace();
         const finalList = [ ...activeAgents, targetPaceAgent ].sort((a,b) => calculateScore(b.dials, b.talkTime) - calculateScore(a.dials, a.talkTime));
 
+        if (requestId < latestAppliedSyncId.current) {
+          return;
+        }
+
+        latestAppliedSyncId.current = requestId;
+
         if (isMounted) {
           setAgents(finalList);
           setFetchStatus('Live');
@@ -1594,6 +1649,8 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           : (err.message || 'Unknown Error');
         setErrorState(errMsg);
         notify(`Sync Failed: ${errMsg}`, 'error');
+      } finally {
+        syncInFlight.current = false;
       }
     };
 
