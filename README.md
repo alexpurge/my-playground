@@ -6,7 +6,7 @@ This project contains a React dashboard (`src/App.jsx`) that pulls Aircall users
 
 - The dashboard performs an initial full sync for the day.
 - It then refreshes every 30 seconds (twice per minute) to keep dials, talk time, and agent availability current.
-- Agent status is sourced from Aircall user availability fields (`availability_status`/`status`) during each poll.
+- Agent status is sourced from active call state (live calls + call webhook events), with Aircall availability fields as fallback when no active call signal is present.
 
 ## Run the frontend
 
