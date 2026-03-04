@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // -----------------------------------------------------------------------------
 const GOOGLE_CLIENT_ID = "114822666541-8ja92po8tuk4en1k8lr0ojoe4dm1r4u8.apps.googleusercontent.com"; 
 const AIRCALL_API_ID = "b4acecdc63a5a18d9145c38cdd0f5f04";
+const AIRCALL_WEBHOOK_URL = "https://dashboard.purgedigital.au/api/aircall/webhook";
 
 // --- ELEVENLABS CONFIGURATION (STRICT RULES) ---
 const ELEVENLABS_VOICE_ID = "IKne3meq5aSn9XLyUdCD"; // Charlie
@@ -913,6 +914,65 @@ const normalizeAircallStatus = (rawStatus) => {
   return 'unavailable';
 };
 
+const toWebSocketUrl = (url) => {
+  try {
+    const parsed = new URL(url);
+    parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
+const extractStatusFromWebhookEvent = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+
+  const rootStatus = payload.status || payload.availability_status || payload.presence || payload.state;
+  if (rootStatus) return rootStatus;
+
+  const data = payload.data;
+  if (data && typeof data === 'object') {
+    const directDataStatus = data.status || data.availability_status || data.presence || data.state;
+    if (directDataStatus) return directDataStatus;
+
+    const user = data.user;
+    if (user && typeof user === 'object') {
+      return user.status || user.availability_status || user.presence || user.state || null;
+    }
+  }
+
+  const user = payload.user;
+  if (user && typeof user === 'object') {
+    return user.status || user.availability_status || user.presence || user.state || null;
+  }
+
+  return null;
+};
+
+const extractUserIdFromWebhookEvent = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  const rootId = payload.user_id || payload.userId;
+  if (rootId !== undefined && rootId !== null) return rootId;
+
+  const data = payload.data;
+  if (data && typeof data === 'object') {
+    const dataId = data.user_id || data.userId;
+    if (dataId !== undefined && dataId !== null) return dataId;
+
+    const user = data.user;
+    if (user && typeof user === 'object' && user.id !== undefined && user.id !== null) {
+      return user.id;
+    }
+  }
+
+  const user = payload.user;
+  if (user && typeof user === 'object' && user.id !== undefined && user.id !== null) {
+    return user.id;
+  }
+
+  return null;
+};
+
 const resolveAgentStatus = (agent, statusMap) => {
   if (agent.isTarget) return null;
   const idKey = String(agent.id || '').toLowerCase();
@@ -1192,6 +1252,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const latestSyncRequestId = useRef(0);
   const latestAppliedSyncId = useRef(0);
   const latestCallTimestampSeen = useRef(0);
+  const websocketRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -1659,6 +1720,73 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
     return () => { isMounted = false; clearInterval(intervalId); };
   }, [apiId, apiToken, googleToken, refreshTrigger]); // Trigger refresh on refreshTrigger change
+
+  useEffect(() => {
+    if (apiId === 'demo') return undefined;
+
+    const socketUrl = toWebSocketUrl(AIRCALL_WEBHOOK_URL);
+    if (!socketUrl) {
+      console.warn('Invalid webhook URL. Skipping live status socket connection.');
+      return undefined;
+    }
+
+    let reconnectTimer = null;
+    let shouldReconnect = true;
+
+    const connect = () => {
+      if (!shouldReconnect) return;
+
+      try {
+        const socket = new WebSocket(socketUrl);
+        websocketRef.current = socket;
+
+        socket.onopen = () => {
+          console.log('Connected to webhook status socket.');
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            const userId = extractUserIdFromWebhookEvent(payload);
+            const rawStatus = extractStatusFromWebhookEvent(payload);
+            if (!userId || !rawStatus) return;
+
+            const normalizedStatus = normalizeAircallStatus(rawStatus);
+            setAgentStatuses((prev) => ({
+              ...prev,
+              [String(userId).toLowerCase()]: normalizedStatus,
+            }));
+          } catch (err) {
+            console.warn('Unable to parse webhook socket event.', err);
+          }
+        };
+
+        socket.onerror = (err) => {
+          console.warn('Webhook status socket error.', err);
+        };
+
+        socket.onclose = () => {
+          websocketRef.current = null;
+          if (!shouldReconnect) return;
+          reconnectTimer = setTimeout(connect, 3000);
+        };
+      } catch (err) {
+        console.warn('Failed to connect to webhook status socket.', err);
+        reconnectTimer = setTimeout(connect, 3000);
+      }
+    };
+
+    connect();
+
+    return () => {
+      shouldReconnect = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (websocketRef.current && websocketRef.current.readyState < 2) {
+        websocketRef.current.close();
+      }
+      websocketRef.current = null;
+    };
+  }, [apiId]);
 
   const maxDials = Math.max(...agents.map(a => a.dials), 1);
   const maxTalk = Math.max(...agents.map(a => a.talkTime), 1);
