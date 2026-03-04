@@ -914,6 +914,44 @@ const normalizeAircallStatus = (rawStatus) => {
   return 'unavailable';
 };
 
+const isActiveCall = (call) => {
+  if (!call || typeof call !== 'object') return false;
+  if (call.ended_at) return false;
+
+  const lower = (value) => String(value || '').toLowerCase();
+  const callStatus = lower(call.status);
+  const callState = lower(call.state);
+
+  const activeFlags = ['answered', 'active', 'ongoing', 'connected', 'in_call', 'talking'];
+  if (activeFlags.some((flag) => callStatus.includes(flag) || callState.includes(flag))) {
+    return true;
+  }
+
+  const startedAt = Number(call.started_at || 0);
+  if (startedAt > 0 && !call.ended_at) return true;
+
+  return false;
+};
+
+const parseInCallSignalFromWebhookEvent = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+
+  const lower = (value) => String(value || '').toLowerCase();
+  const eventType = lower(payload.event || payload.event_name || payload.type || payload.name);
+  const eventStatus = lower(payload.status || payload.state);
+  const call = payload.call || payload.data?.call || payload.data;
+
+  if (call && isActiveCall(call)) return true;
+
+  if (eventType.includes('call.ended') || eventType.includes('call.hungup') || eventType.includes('call.hangup')) return false;
+  if (eventType.includes('call.answered') || eventType.includes('call.started') || eventType.includes('call.connected')) return true;
+
+  if (eventStatus.includes('ended') || eventStatus.includes('hangup')) return false;
+  if (eventStatus.includes('answered') || eventStatus.includes('active') || eventStatus.includes('in_call')) return true;
+
+  return null;
+};
+
 const toWebSocketUrl = (url) => {
   try {
     const parsed = new URL(url);
@@ -1673,8 +1711,17 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
         });
 
         const statusSeed = {};
+        const activeCallUsers = new Set();
+        callsCache.current.forEach((call) => {
+          if (isActiveCall(call) && call?.user?.id !== undefined && call?.user?.id !== null) {
+            activeCallUsers.add(String(call.user.id));
+          }
+        });
+
         Object.values(stats).forEach((agent) => {
-          const userStatus = userMap[agent.id]?.status || 'unavailable';
+          const userStatus = activeCallUsers.has(String(agent.id))
+            ? 'in_call'
+            : (userMap[agent.id]?.status || 'unavailable');
           statusSeed[String(agent.id).toLowerCase()] = userStatus;
           statusSeed[String(agent.name).toLowerCase()] = userStatus;
         });
@@ -1748,10 +1795,17 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           try {
             const payload = JSON.parse(event.data);
             const userId = extractUserIdFromWebhookEvent(payload);
-            const rawStatus = extractStatusFromWebhookEvent(payload);
-            if (!userId || !rawStatus) return;
+            if (!userId) return;
 
-            const normalizedStatus = normalizeAircallStatus(rawStatus);
+            const inCallSignal = parseInCallSignalFromWebhookEvent(payload);
+            const rawStatus = extractStatusFromWebhookEvent(payload);
+            const normalizedStatus = inCallSignal === true
+              ? 'in_call'
+              : (inCallSignal === false
+                ? 'available'
+                : normalizeAircallStatus(rawStatus));
+
+            if (!normalizedStatus) return;
             setAgentStatuses((prev) => ({
               ...prev,
               [String(userId).toLowerCase()]: normalizedStatus,
