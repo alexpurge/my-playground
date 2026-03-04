@@ -909,7 +909,14 @@ const AGENT_STATUS_META = {
 const normalizeAircallStatus = (rawStatus) => {
   if (!rawStatus) return 'unavailable';
   const value = String(rawStatus).toLowerCase();
-  if (value.includes('in_call') || value.includes('incall') || value.includes('on_call') || value.includes('busy')) return 'in_call';
+  if (
+    value.includes('in_call') ||
+    value.includes('incall') ||
+    value.includes('on_call') ||
+    value.includes('busy') ||
+    value.includes('dial') ||
+    value.includes('ring')
+  ) return 'in_call';
   if (value.includes('available') && !value.includes('unavailable')) return 'available';
   return 'unavailable';
 };
@@ -922,7 +929,7 @@ const isActiveCall = (call) => {
   const callStatus = lower(call.status);
   const callState = lower(call.state);
 
-  const activeFlags = ['answered', 'active', 'ongoing', 'connected', 'in_call', 'talking'];
+  const activeFlags = ['answered', 'active', 'ongoing', 'connected', 'in_call', 'talking', 'dial', 'ring'];
   if (activeFlags.some((flag) => callStatus.includes(flag) || callState.includes(flag))) {
     return true;
   }
@@ -944,10 +951,22 @@ const parseInCallSignalFromWebhookEvent = (payload) => {
   if (call && isActiveCall(call)) return true;
 
   if (eventType.includes('call.ended') || eventType.includes('call.hungup') || eventType.includes('call.hangup')) return false;
-  if (eventType.includes('call.answered') || eventType.includes('call.started') || eventType.includes('call.connected')) return true;
+  if (
+    eventType.includes('call.answered') ||
+    eventType.includes('call.started') ||
+    eventType.includes('call.connected') ||
+    eventType.includes('call.dial') ||
+    eventType.includes('call.ring')
+  ) return true;
 
   if (eventStatus.includes('ended') || eventStatus.includes('hangup')) return false;
-  if (eventStatus.includes('answered') || eventStatus.includes('active') || eventStatus.includes('in_call')) return true;
+  if (
+    eventStatus.includes('answered') ||
+    eventStatus.includes('active') ||
+    eventStatus.includes('in_call') ||
+    eventStatus.includes('dial') ||
+    eventStatus.includes('ring')
+  ) return true;
 
   return null;
 };
