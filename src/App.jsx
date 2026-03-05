@@ -953,9 +953,12 @@ const parseInCallSignalFromWebhookEvent = (payload) => {
   if (eventType.includes('call.ended') || eventType.includes('call.hungup') || eventType.includes('call.hangup')) return false;
   if (
     eventType.includes('call.answered') ||
+    eventType.includes('call.created') ||
+    eventType.includes('call.initiated') ||
     eventType.includes('call.started') ||
     eventType.includes('call.connected') ||
     eventType.includes('call.dial') ||
+    eventType.includes('dialing') ||
     eventType.includes('call.ring')
   ) return true;
 
@@ -1028,6 +1031,36 @@ const extractUserIdFromWebhookEvent = (payload) => {
   }
 
   return null;
+};
+
+const extractUserIdsFromWebhookEvent = (payload) => {
+  if (!payload || typeof payload !== 'object') return [];
+
+  const ids = new Set();
+  const pushId = (value) => {
+    if (value === undefined || value === null) return;
+    const id = String(value).trim();
+    if (!id) return;
+    ids.add(id.toLowerCase());
+  };
+
+  pushId(extractUserIdFromWebhookEvent(payload));
+
+  const call = payload.call || payload.data?.call || payload.data;
+  if (call && typeof call === 'object') {
+    pushId(call.user_id);
+    pushId(call.assigned_to?.id);
+    pushId(call.user?.id);
+
+    if (Array.isArray(call.users)) {
+      call.users.forEach((user) => {
+        if (user && typeof user === 'object') pushId(user.id);
+        else pushId(user);
+      });
+    }
+  }
+
+  return Array.from(ids);
 };
 
 const resolveAgentStatus = (agent, statusMap) => {
@@ -1813,8 +1846,8 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
         socket.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
-            const userId = extractUserIdFromWebhookEvent(payload);
-            if (!userId) return;
+            const userIds = extractUserIdsFromWebhookEvent(payload);
+            if (userIds.length === 0) return;
 
             const inCallSignal = parseInCallSignalFromWebhookEvent(payload);
             const rawStatus = extractStatusFromWebhookEvent(payload);
@@ -1825,10 +1858,13 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                 : normalizeAircallStatus(rawStatus));
 
             if (!normalizedStatus) return;
-            setAgentStatuses((prev) => ({
-              ...prev,
-              [String(userId).toLowerCase()]: normalizedStatus,
-            }));
+            setAgentStatuses((prev) => {
+              const next = { ...prev };
+              userIds.forEach((userId) => {
+                next[userId] = normalizedStatus;
+              });
+              return next;
+            });
           } catch (err) {
             console.warn('Unable to parse webhook socket event.', err);
           }
