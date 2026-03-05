@@ -359,18 +359,19 @@ const styles = `
   .upcoming-summary-card {
     position: relative;
     isolation: isolate;
-    overflow: hidden;
+    overflow: visible;
     border-radius: 0.75rem;
-    padding: 1.15rem 1.35rem 1.45rem;
+    padding: 1.25rem;
     background: linear-gradient(145deg, rgba(53, 26, 12, 0.95) 0%, rgba(23, 23, 23, 0.95) 55%, rgba(12, 12, 12, 0.96) 100%);
-    border: 1px solid rgba(234, 88, 12, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 1rem;
+    gap: 0.75rem;
     box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.45);
     animation: upcoming-card-background-pulse 2s infinite;
-    min-height: 132px;
+    height: auto;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
 
   [data-theme='light'] .upcoming-summary-card {
