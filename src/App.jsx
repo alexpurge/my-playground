@@ -1250,7 +1250,7 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap }) => {
   return (
     <div className={rowClass}>
       <div className="rank-badge">
-        {isWinner ? <TrophyIcon size={20} fill="currentColor" /> : (isTarget ? <ZapIcon size={20} fill="currentColor" /> : rank)}
+        {isWinner ? <TrophyIcon size={30} fill="currentColor" /> : (isTarget ? <ZapIcon size={20} fill="currentColor" /> : rank)}
       </div>
       <div className="agent-info">
         <div className="agent-name">{firstName}</div>
