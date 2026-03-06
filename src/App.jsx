@@ -34,7 +34,18 @@ const LogOutIcon = (props) => <IconBase {...props}><path d="M9 21H5a2 2 0 0 1-2-
 const WifiOffIcon = (props) => <IconBase {...props}><line x1="1" y1="1" x2="23" y2="23" /><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" /><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" /><path d="M10.71 5.05A16 16 0 0 1 22.58 9" /><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /></IconBase>;
 const ShieldCheckIcon = (props) => <IconBase {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></IconBase>;
 const ZapIcon = (props) => <IconBase {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></IconBase>;
-const TrophyIcon = (props) => <IconBase {...props}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17" /><path d="M14 14.66V17" /><path d="M18 2h-4" /><path d="M6 2H2" /><path d="M12 2v7" /></IconBase>;
+const TrophyIcon = ({ size = 24, color = "currentColor", ...props }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill={color}
+    {...props}
+  >
+    <path d="M7 2a1 1 0 0 0-1 1v2H3.5A1.5 1.5 0 0 0 2 6.5V8a5.5 5.5 0 0 0 5.5 5.5h.09A5.98 5.98 0 0 0 11 15.92V18H8a1 1 0 0 0 0 2h8a1 1 0 1 0 0-2h-3v-2.08a5.98 5.98 0 0 0 3.41-2.42h.09A5.5 5.5 0 0 0 22 8V6.5A1.5 1.5 0 0 0 20.5 5H18V3a1 1 0 0 0-1-1H7Zm-3 5h2v2.06A3.5 3.5 0 0 1 4 8V7Zm14 0h2v1a3.5 3.5 0 0 1-2 3.06V7Z" />
+  </svg>
+);
 const DatabaseIcon = (props) => <IconBase {...props}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></IconBase>;
 const RefreshCwIcon = (props) => <IconBase {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></IconBase>;
 const CalendarIcon = (props) => <IconBase {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></IconBase>;
