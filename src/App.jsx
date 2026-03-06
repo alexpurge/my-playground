@@ -882,9 +882,15 @@ const getBrisbaneTime = () => {
 const calculateTargetPace = () => {
   const now = getBrisbaneTime();
   const startOfDay = new Date(now).setHours(8, 0, 0, 0); 
-  const lunchTime = new Date(now).setHours(12, 0, 0, 0); 
+  const lunchStart = new Date(now).setHours(12, 0, 0, 0); 
+  const lunchEnd = new Date(now).setHours(13, 0, 0, 0); 
   const endTime = new Date(now).setHours(17, 0, 0, 0);   
   const currentTime = now.getTime();
+
+  const fullDayDialsTarget = 200;
+  const fullDayTalkMinutesTarget = 300;
+  const middayDialsTarget = 100;
+  const middayTalkMinutesTarget = 150;
 
   let targetDials = 0;
   let targetTalkMinutes = 0;
@@ -892,21 +898,24 @@ const calculateTargetPace = () => {
   if (currentTime < startOfDay) {
     targetDials = 0;
     targetTalkMinutes = 0;
-  } else if (currentTime <= lunchTime) {
-    const totalDuration = lunchTime - startOfDay;
+  } else if (currentTime <= lunchStart) {
+    const totalDuration = lunchStart - startOfDay;
     const elapsed = currentTime - startOfDay;
     const progress = elapsed / totalDuration;
-    targetDials = Math.floor(progress * 75);
-    targetTalkMinutes = Math.floor(progress * 125);
+    targetDials = Math.floor(progress * middayDialsTarget);
+    targetTalkMinutes = Math.floor(progress * middayTalkMinutesTarget);
+  } else if (currentTime <= lunchEnd) {
+    targetDials = middayDialsTarget;
+    targetTalkMinutes = middayTalkMinutesTarget;
   } else if (currentTime <= endTime) {
-    const totalDuration = endTime - lunchTime;
-    const elapsed = currentTime - lunchTime;
+    const totalDuration = endTime - lunchEnd;
+    const elapsed = currentTime - lunchEnd;
     const progress = elapsed / totalDuration;
-    targetDials = 75 + Math.floor(progress * 75);
-    targetTalkMinutes = 125 + Math.floor(progress * 125);
+    targetDials = middayDialsTarget + Math.floor(progress * (fullDayDialsTarget - middayDialsTarget));
+    targetTalkMinutes = middayTalkMinutesTarget + Math.floor(progress * (fullDayTalkMinutesTarget - middayTalkMinutesTarget));
   } else {
-    targetDials = 150;
-    targetTalkMinutes = 250;
+    targetDials = fullDayDialsTarget;
+    targetTalkMinutes = fullDayTalkMinutesTarget;
   }
   const targetTalkSeconds = targetTalkMinutes * 60;
   return { id: 'target-pace', name: 'TARGET PACE', dials: targetDials, talkTime: targetTalkSeconds, isTarget: true };
