@@ -17,6 +17,7 @@ const ELEVENLABS_VOICE_SETTINGS = {
   use_speaker_boost: true,
 };
 const ELEVENLABS_SPEED = 0.87; // 0.87
+const BOOKINGS_CALENDAR_ID = 'meta.bookings@purgedigital.com.au';
 
 // -----------------------------------------------------------------------------
 // INLINE ICONS (Self-contained, no external dependencies)
@@ -1449,7 +1450,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
   const addAttendeeToBooking = async (booking, attendeeEmail) => {
     if (!booking?.id || !attendeeEmail) {
-      notify('Please select a rep email before submitting.', 'error');
+      notify('Please select an agent email before submitting.', 'error');
       return;
     }
 
@@ -1472,7 +1473,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       }
 
       await gapi.client.calendar.events.patch({
-        calendarId: 'primary',
+        calendarId: booking.organizer?.email || BOOKINGS_CALENDAR_ID,
         eventId: booking.id,
         resource: {
           attendees: updatedAttendees,
@@ -1480,11 +1481,11 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
         sendUpdates: 'all',
       });
 
-      notify('Rep assigned to booking successfully.', 'success');
+      notify('Email assigned to booking successfully.', 'success');
       await listUpcomingEvents();
     } catch (error) {
       console.error('Failed to assign rep to booking event', error);
-      notify('Failed to assign rep to booking.', 'error');
+      notify('Failed to assign email to booking.', 'error');
     } finally {
       setAssignmentLoadingByEvent((prev) => ({ ...prev, [booking.id]: false }));
     }
@@ -1581,7 +1582,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
      try {
        const request = {
-         'calendarId': 'primary', 
+         'calendarId': BOOKINGS_CALENDAR_ID,
          'timeMin': start.toISOString(),
          'timeMax': end.toISOString(),
          'showDeleted': false,
@@ -1593,7 +1594,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
        // BACKEND FILTER: Only start with "OP"
        const allEvents = response.result.items || [];
        const filteredEvents = allEvents.filter(event => 
-         event.summary && event.summary.trim().toLowerCase().startsWith('op')
+         event.summary && event.summary.toLowerCase().includes('op')
        );
 
        setBookings(filteredEvents);
@@ -2214,9 +2215,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                             className="booking-assignment-select"
                             value={selectedAssignees[booking.id] || ''}
                             onChange={(event) => handleAssigneeChange(booking.id, event.target.value)}
-                            aria-label={`Assign additional rep to ${displaySummary}`}
+                            aria-label={`Assign agent email to ${displaySummary}`}
                           >
-                            <option value="">Assign additional Aircall rep…</option>
+                            <option value="">Assign agent email…</option>
                             {aircallUsers.map((user) => (
                               <option key={user.id} value={user.email}>{`${user.name} (${user.email})`}</option>
                             ))}
@@ -2227,7 +2228,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                             onClick={() => addAttendeeToBooking(booking, selectedAssignees[booking.id])}
                             disabled={!selectedAssignees[booking.id] || assignmentLoadingByEvent[booking.id]}
                           >
-                            {assignmentLoadingByEvent[booking.id] ? 'Saving…' : 'Submit'}
+                            {assignmentLoadingByEvent[booking.id] ? 'Saving…' : 'Assign email'}
                           </button>
                        </div>
                     </div>
