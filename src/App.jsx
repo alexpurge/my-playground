@@ -528,6 +528,46 @@ const styles = `
     z-index: 1;
   }
 
+  .booking-assignment-row {
+    display: flex;
+    gap: 0.65rem;
+    align-items: center;
+  }
+
+  .booking-assignment-select {
+    flex: 1;
+    min-width: 0;
+    height: 2.5rem;
+    border-radius: 0.65rem;
+    border: 1px solid rgba(251, 146, 60, 0.35);
+    background: rgba(10, 10, 10, 0.8);
+    color: var(--text-primary);
+    font-weight: 700;
+    padding: 0 0.8rem;
+  }
+
+  .booking-assignment-submit {
+    border: 1px solid rgba(251, 146, 60, 0.45);
+    background: linear-gradient(135deg, rgba(72, 33, 17, 0.9), rgba(35, 35, 35, 0.9));
+    color: #fb923c;
+    border-radius: 0.65rem;
+    height: 2.5rem;
+    padding: 0 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .booking-assignment-submit:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  [data-theme='light'] .booking-assignment-select {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(234, 88, 12, 0.3);
+    color: #0f172a;
+  }
+
   .booking-rep-chip {
     background: linear-gradient(135deg, rgba(65, 33, 17, 0.92), rgba(37, 37, 37, 0.88));
     color: #fff;
@@ -1114,7 +1154,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
     const initTokenClient = () => {
       tokenClient.current = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/calendar.events.readonly',
+        scope: 'https://www.googleapis.com/auth/calendar.events',
         redirect_uri: 'http://localhost:5174/',
         callback: (resp) => {
           if (resp.error !== undefined) {
@@ -1323,6 +1363,9 @@ const LoadingScreen = ({ status, error, onRetry, onCancel }) => (
 // SCREEN 3: DASHBOARD (Data Loading -> Display)
 const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme }) => {
   const [agents, setAgents] = useState([]);
+  const [aircallUsers, setAircallUsers] = useState([]);
+  const [selectedAssignees, setSelectedAssignees] = useState({});
+  const [assignmentLoadingByEvent, setAssignmentLoadingByEvent] = useState({});
   const [loading, setLoading] = useState(true);
   const [fetchStatus, setFetchStatus] = useState('Initializing...');
   const [errorState, setErrorState] = useState(null); 
@@ -1390,6 +1433,61 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     if (!email) return "Unknown";
     const rawName = email.split('@')[0].split('.')[0]; 
     return rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  };
+
+  const getAircallAssignableUsers = (userMap) => {
+    return Object.entries(userMap).map(([id, user]) => ({
+      id,
+      name: user.name || 'Unknown',
+      email: user.email || '',
+    })).filter((user) => Boolean(user.email));
+  };
+
+  const handleAssigneeChange = (eventId, email) => {
+    setSelectedAssignees((prev) => ({ ...prev, [eventId]: email }));
+  };
+
+  const addAttendeeToBooking = async (booking, attendeeEmail) => {
+    if (!booking?.id || !attendeeEmail) {
+      notify('Please select a rep email before submitting.', 'error');
+      return;
+    }
+
+    setAssignmentLoadingByEvent((prev) => ({ ...prev, [booking.id]: true }));
+
+    try {
+      const existingAttendees = Array.isArray(booking.attendees) ? booking.attendees : [];
+      const attendeeSet = new Set(existingAttendees.map((attendee) => String(attendee.email || '').toLowerCase()));
+      attendeeSet.add(attendeeEmail.toLowerCase());
+
+      const updatedAttendees = [
+        ...existingAttendees,
+        ...(!attendeeSet.has('meta.bookings@purgedigital.com.au')
+          ? [{ email: 'meta.bookings@purgedigital.com.au' }]
+          : []),
+      ];
+
+      if (!existingAttendees.some((attendee) => String(attendee.email || '').toLowerCase() === attendeeEmail.toLowerCase())) {
+        updatedAttendees.push({ email: attendeeEmail });
+      }
+
+      await gapi.client.calendar.events.patch({
+        calendarId: 'primary',
+        eventId: booking.id,
+        resource: {
+          attendees: updatedAttendees,
+        },
+        sendUpdates: 'all',
+      });
+
+      notify('Rep assigned to booking successfully.', 'success');
+      await listUpcomingEvents();
+    } catch (error) {
+      console.error('Failed to assign rep to booking event', error);
+      notify('Failed to assign rep to booking.', 'error');
+    } finally {
+      setAssignmentLoadingByEvent((prev) => ({ ...prev, [booking.id]: false }));
+    }
   };
 
   // --- ELEVENLABS ANNOUNCEMENT FUNCTION ---
@@ -1620,6 +1718,11 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           });
           setAgentStatuses(demoStatuses);
           setAgents(combined);
+          setAircallUsers(activeMocks.map((agent) => ({
+            id: String(agent.id),
+            name: agent.name,
+            email: `${agent.name.toLowerCase().replace(/\s+/g, '.')}@purgedigital.com.au`,
+          })));
           setBookings(generateMockBookings());
           setLoading(false); 
         };
@@ -1642,6 +1745,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       data.users.forEach((user) => {
         users[user.id] = {
           name: user.name,
+          email: user.email || '',
           status: normalizeAircallStatus(user?.availability_status || user?.status),
         };
       });
@@ -1665,7 +1769,8 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
         if (!loading) setErrorState(null); 
         
         const userMap = await fetchUsers(); 
-        
+        setAircallUsers(getAircallAssignableUsers(userMap));
+
         let allowedUserIds = null;
         try {
            const teamsRes = await fetch(`${baseUrl}/teams`, { headers });
@@ -2102,6 +2207,28 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                               <ExternalLinkIcon size={16} />
                             </a>
                           )}
+                       </div>
+
+                       <div className="booking-assignment-row">
+                          <select
+                            className="booking-assignment-select"
+                            value={selectedAssignees[booking.id] || ''}
+                            onChange={(event) => handleAssigneeChange(booking.id, event.target.value)}
+                            aria-label={`Assign additional rep to ${displaySummary}`}
+                          >
+                            <option value="">Assign additional Aircall rep…</option>
+                            {aircallUsers.map((user) => (
+                              <option key={user.id} value={user.email}>{`${user.name} (${user.email})`}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="booking-assignment-submit"
+                            onClick={() => addAttendeeToBooking(booking, selectedAssignees[booking.id])}
+                            disabled={!selectedAssignees[booking.id] || assignmentLoadingByEvent[booking.id]}
+                          >
+                            {assignmentLoadingByEvent[booking.id] ? 'Saving…' : 'Submit'}
+                          </button>
                        </div>
                     </div>
                   );
