@@ -145,6 +145,9 @@ const extractBusinessName = (object, related = {}) => {
   return firstNonEmpty(
     object?.customer_details?.business_name,
     object?.customer_details?.company,
+    object?.shipping?.name,
+    object?.business_name,
+    related?.invoice?.account_name,
     metadata.business_name,
     metadata.company_name,
     metadata.company,
@@ -153,10 +156,91 @@ const extractBusinessName = (object, related = {}) => {
     customerMetadata.business_name,
     customerMetadata.company_name,
     customerMetadata.company,
-    related?.invoice?.customer_name,
-    related?.customer?.name,
     extractCustomFieldValue(object?.custom_fields, ['business', 'company'])
   );
+};
+
+const NEW_CUSTOMER_METADATA_KEYS = [
+  'new_customer',
+  'first_payment',
+  'first_successful_payment',
+  'onboarding',
+  'trigger_onboarding',
+];
+
+const isTruthyMetadataValue = (value) => {
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
+};
+
+const hasNewCustomerMetadata = (...objects) => {
+  for (const candidate of objects) {
+    const metadata = candidate?.metadata || {};
+    const hasFlag = NEW_CUSTOMER_METADATA_KEYS.some((key) => isTruthyMetadataValue(metadata[key]));
+    if (hasFlag) return true;
+  }
+  return false;
+};
+
+const getObjectId = (candidate) => {
+  if (!candidate) return '';
+  if (typeof candidate === 'string') return candidate;
+  return String(candidate.id || '').trim();
+};
+
+const dedupeCache = new Map();
+
+const wasRecentlyEmitted = (key) => {
+  const now = Date.now();
+  const ttlMs = 1000 * 60 * 30;
+
+  for (const [cacheKey, createdAt] of dedupeCache.entries()) {
+    if (now - createdAt > ttlMs) dedupeCache.delete(cacheKey);
+  }
+
+  if (dedupeCache.has(key)) return true;
+  dedupeCache.set(key, now);
+  return false;
+};
+
+const buildPaymentDedupeKey = (event, object, related = {}) => {
+  const paymentIntentId = getObjectId(related?.paymentIntent || object?.payment_intent);
+  const invoiceId = getObjectId(related?.invoice || object?.invoice);
+  const checkoutSessionId = event?.type?.startsWith('checkout.session') ? getObjectId(object) : '';
+  const chargeId = getObjectId(related?.charge || object?.latest_charge);
+
+  return firstNonEmpty(paymentIntentId, invoiceId, checkoutSessionId, chargeId, event?.id);
+};
+
+const isNewCustomerPayment = async (event, object, related = {}) => {
+  const customer = related?.customer;
+  const invoice = related?.invoice;
+  const paymentIntent = related?.paymentIntent;
+
+  if (hasNewCustomerMetadata(object, invoice, paymentIntent, customer)) return true;
+
+  if (invoice?.billing_reason === 'subscription_create') return true;
+  if (event?.type?.startsWith('checkout.session') && object?.mode === 'setup') return false;
+
+  const customerId = getObjectId(customer || object?.customer || paymentIntent?.customer || invoice?.customer);
+  if (!customerId || !stripeSecretKey) return false;
+
+  try {
+    const [paymentIntents, invoices] = await Promise.all([
+      stripeFetch(`payment_intents?customer=${encodeURIComponent(customerId)}&limit=2`),
+      stripeFetch(`invoices?customer=${encodeURIComponent(customerId)}&status=paid&limit=2`),
+    ]);
+
+    const successfulPayments = Number(paymentIntents?.data?.length || 0);
+    const paidInvoices = Number(invoices?.data?.length || 0);
+
+    if (successfulPayments <= 1 || paidInvoices <= 1) return true;
+  } catch (error) {
+    console.warn(`Unable to evaluate first-payment status for customer ${customerId}.`, error?.message || error);
+  }
+
+  return false;
 };
 
 const extractCustomerName = (object, related = {}) => {
@@ -279,7 +363,10 @@ const toSuccessPayload = async (event) => {
   const { object, related } = await fetchExpandedObject(event);
   const businessName = extractBusinessName(object, related);
   const customerName = extractCustomerName(object, related);
-  const displayName = businessName || customerName || 'New customer';
+  const isNewCustomer = await isNewCustomerPayment(event, object, related);
+  const dedupeKey = buildPaymentDedupeKey(event, object, related);
+  const shouldEmit = isNewCustomer && !wasRecentlyEmitted(dedupeKey);
+  const displayName = businessName || 'New client';
 
   return {
     type: 'payment_succeeded',
@@ -289,6 +376,8 @@ const toSuccessPayload = async (event) => {
     businessName,
     customerName,
     displayName,
+    isNewCustomer,
+    shouldEmit,
     amount: Number(object.amount_received || object.amount_total || object.amount || 0),
     currency: object.currency || 'usd',
     created: event.created || Math.floor(Date.now() / 1000),
@@ -421,7 +510,9 @@ const server = createServer(async (req, res) => {
         event?.type === 'charge.succeeded';
       if (isSuccessEvent) {
         const payload = await toSuccessPayload(event);
-        emitStripeSuccess(payload);
+        if (payload.shouldEmit) {
+          emitStripeSuccess(payload);
+        }
       }
 
       return writeJson(res, 200, { ok: true, received: true });
