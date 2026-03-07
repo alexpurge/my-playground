@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Confetti from 'react-confetti';
 import { io } from 'socket.io-client';
 
 // -----------------------------------------------------------------------------
@@ -177,6 +176,33 @@ const styles = `
     position: absolute;
     inset: 0;
     z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .sale-popup-confetti-piece {
+    position: absolute;
+    top: -12%;
+    border-radius: 999px;
+    opacity: 0.9;
+    transform: translateY(0) rotate(0deg);
+    animation-name: popupConfettiFall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  @keyframes popupConfettiFall {
+    0% {
+      transform: translateY(-10%) rotate(0deg);
+      opacity: 0;
+    }
+    12% {
+      opacity: 0.9;
+    }
+    100% {
+      transform: translateY(130vh) rotate(420deg);
+      opacity: 0;
+    }
   }
 
   .sale-popup-content {
@@ -2327,13 +2353,14 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
 
 const SaleClearedPopup = ({ saleData, onClose }) => {
-  const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
-
-  useEffect(() => {
-    const onResize = () => setDimensions({ width: window.innerWidth, height: window.innerHeight });
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+  const confettiPieces = Array.from({ length: 36 }, (_, index) => ({
+    id: index,
+    left: `${(index * 17) % 100}%`,
+    size: 6 + (index % 6),
+    delay: `${(index % 9) * 0.2}s`,
+    duration: `${2 + (index % 5) * 0.35}s`,
+    hue: (index * 29) % 360,
+  }));
 
   if (!saleData) return null;
 
@@ -2341,14 +2368,20 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
     <div className="sale-popup-overlay">
       <div className="sale-popup-card">
         <div className="sale-popup-confetti">
-          <Confetti
-            width={dimensions.width}
-            height={dimensions.height}
-            recycle
-            gravity={0.18}
-            wind={0.015}
-            numberOfPieces={220}
-          />
+          {confettiPieces.map((piece) => (
+            <span
+              key={piece.id}
+              className="sale-popup-confetti-piece"
+              style={{
+                left: piece.left,
+                width: `${piece.size}px`,
+                height: `${piece.size * 1.6}px`,
+                backgroundColor: `hsl(${piece.hue} 95% 58%)`,
+                animationDelay: piece.delay,
+                animationDuration: piece.duration,
+              }}
+            />
+          ))}
         </div>
         <div className="sale-popup-content">
           <h2 className="sale-popup-heading">🎉 NEW CLIENT ONBOARDING</h2>
