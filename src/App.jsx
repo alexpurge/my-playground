@@ -148,6 +148,80 @@ const styles = `
   }
   .toast.error { border-left-color: #ef4444; }
   .toast.success { border-left-color: #22c55e; }
+
+  .onboarding-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .onboarding-modal {
+    width: min(680px, 100%);
+    position: relative;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: radial-gradient(circle at top, rgba(251, 146, 60, 0.28), rgba(17, 24, 39, 0.96));
+    color: #fff;
+    padding: 2.5rem;
+    text-align: center;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65), 0 0 45px rgba(249, 115, 22, 0.32);
+  }
+
+  .onboarding-title {
+    margin: 0;
+    font-size: 2.3rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .onboarding-subtitle {
+    margin: 0.75rem 0 0 0;
+    color: #fed7aa;
+    font-size: 1.05rem;
+  }
+
+  .onboarding-fireworks {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+  }
+
+  .firework {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    opacity: 0;
+    animation: firework-burst 1.4s ease-out infinite;
+  }
+
+  .confetti-particle {
+    position: absolute;
+    width: 10px;
+    height: 14px;
+    opacity: 0;
+    animation: confetti-fall 2.8s linear infinite;
+  }
+
+  @keyframes firework-burst {
+    0% { transform: scale(0.1); opacity: 0; }
+    25% { opacity: 1; }
+    100% { transform: scale(5.5); opacity: 0; }
+  }
+
+  @keyframes confetti-fall {
+    0% { transform: translateY(-100%) rotate(0deg); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translateY(720px) rotate(720deg); opacity: 0; }
+  }
   
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(100%); }
@@ -1125,13 +1199,59 @@ const ToastNotification = ({ toasts, removeToast }) => (
   </div>
 );
 
+const ONBOARDING_FIREWORKS = [
+  { top: '16%', left: '18%', delay: '0s', color: '#fbbf24' },
+  { top: '28%', left: '78%', delay: '0.35s', color: '#a78bfa' },
+  { top: '62%', left: '20%', delay: '0.75s', color: '#34d399' },
+  { top: '68%', left: '78%', delay: '1.05s', color: '#f472b6' },
+];
+
+const ONBOARDING_CONFETTI = Array.from({ length: 28 }, (_, idx) => ({
+  left: `${Math.random() * 100}%`,
+  delay: `${(idx % 8) * 0.22}s`,
+  background: ['#f97316', '#facc15', '#22c55e', '#38bdf8', '#a78bfa'][idx % 5],
+}));
+
+const NewClientOnboardingModal = ({ event, onClose }) => {
+  if (!event) return null;
+
+  return (
+    <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="New client onboarding celebration">
+      <div className="onboarding-modal">
+        <div className="onboarding-fireworks">
+          {ONBOARDING_FIREWORKS.map((item, idx) => (
+            <span
+              key={`firework-${idx}`}
+              className="firework"
+              style={{ top: item.top, left: item.left, animationDelay: item.delay, backgroundColor: item.color }}
+            />
+          ))}
+          {ONBOARDING_CONFETTI.map((item, idx) => (
+            <span
+              key={`confetti-${idx}`}
+              className="confetti-particle"
+              style={{ left: item.left, animationDelay: item.delay, backgroundColor: item.background }}
+            />
+          ))}
+        </div>
+        <h2 className="onboarding-title">🎉 New Client Onboarding 🎉</h2>
+        <p className="onboarding-subtitle">Payment succeeded for <strong>{event.customerName || 'a new client'}</strong>.</p>
+        <p className="onboarding-subtitle" style={{ opacity: 0.9 }}>Stripe event: {event.eventType}</p>
+        <button type="button" className="btn-primary" onClick={onClose} style={{ marginTop: '2rem' }}>
+          Awesome — Keep Going
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // SCREEN 1: UNIFIED LOGIN SCREEN
 const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState(null);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const tokenClient = useRef(null);
-  const credentialsRef = useRef({ token: '', key: '', elKey: '' }); // Store parsed creds here
+  const credentialsRef = useRef({ token: '', key: '', elKey: '', stripeKey: '' }); // Store parsed creds here
 
   // Load Google Scripts on Mount
   useEffect(() => {
@@ -1160,7 +1280,8 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
             credentialsRef.current.token, 
             credentialsRef.current.key, 
             resp.access_token,
-            credentialsRef.current.elKey // Passed 11Labs Key
+            credentialsRef.current.elKey,
+            credentialsRef.current.stripeKey
           );
         },
       });
@@ -1176,9 +1297,9 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
 
     const lines = inputText.trim().split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-    // Validate we have at least 3 lines (Token + Google Key + ElevenLabs Key)
-    if (lines.length < 3) {
-      const msg = "Please paste credentials:\nLine 1: Aircall API Token\nLine 2: Google API Key\nLine 3: ElevenLabs API Key";
+    // Validate we have at least 4 lines (Token + Google Key + ElevenLabs Key + Stripe Secret Key)
+    if (lines.length < 4) {
+      const msg = "Please paste credentials:\nLine 1: Aircall API Token\nLine 2: Google API Key\nLine 3: ElevenLabs API Key\nLine 4: Stripe Secret API Key";
       setError(msg);
       notify("Missing Credentials. Check input.", 'error');
       return;
@@ -1192,7 +1313,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
     }
 
     // Store for callback
-    credentialsRef.current = { token: lines[0], key: lines[1], elKey: lines[2] };
+    credentialsRef.current = { token: lines[0], key: lines[1], elKey: lines[2], stripeKey: lines[3] };
 
     // Trigger Google Auth Popup
     try {
@@ -1229,7 +1350,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
               value={inputText} 
               onChange={(e) => setInputText(e.target.value)} 
               className="input-field" 
-              placeholder={`Aircall API Token\nGoogle API Key\nElevenLabs API Key`}
+              placeholder={`Aircall API Token\nGoogle API Key\nElevenLabs API Key\nStripe Secret API Key`}
               style={{ height: '8rem', resize: 'none', fontFamily: 'monospace', lineHeight: '1.5' }}
             />
           </div>
@@ -1352,7 +1473,7 @@ const LoadingScreen = ({ status, error, onRetry, onCancel }) => (
 );
 
 // SCREEN 3: DASHBOARD (Data Loading -> Display)
-const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme }) => {
+const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, stripeSecretKey, onLogout, notify, toggleTheme, theme }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchStatus, setFetchStatus] = useState('Initializing...');
@@ -1375,6 +1496,71 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const latestAppliedSyncId = useRef(0);
   const latestCallTimestampSeen = useRef(0);
   const websocketRef = useRef(null);
+  const [latestStripeSuccess, setLatestStripeSuccess] = useState(null);
+
+  const handleStripePopup = (payload) => {
+    setLatestStripeSuccess(payload);
+    notify(`Stripe payment succeeded for ${payload.customerName || 'new customer'}.`, 'success');
+  };
+
+  const handleSimulateStripeSuccess = async () => {
+    try {
+      const response = await fetch('http://localhost:8787/api/stripe/simulate-success', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerName: 'Simulation Customer' }),
+      });
+      if (!response.ok) throw new Error(`Simulation failed (${response.status})`);
+      notify('Stripe success simulation sent.', 'success');
+    } catch (err) {
+      notify(`Could not simulate Stripe success: ${err.message}`, 'error');
+    }
+  };
+
+  useEffect(() => {
+    if (apiId === 'demo' || !stripeSecretKey) return undefined;
+
+    let stripeSource;
+
+    const initStripeBridge = async () => {
+      try {
+        const configRes = await fetch('http://localhost:8787/api/stripe/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secretKey: stripeSecretKey }),
+        });
+
+        if (!configRes.ok) {
+          throw new Error('Stripe key could not be registered with helper server.');
+        }
+
+        stripeSource = new EventSource('http://localhost:8787/api/stripe/events');
+        stripeSource.onmessage = (event) => {
+          try {
+            const parsed = JSON.parse(event.data);
+            if (parsed?.type === 'payment_succeeded') {
+              handleStripePopup(parsed);
+            }
+          } catch {
+            // ignore malformed SSE data
+          }
+        };
+
+        stripeSource.onerror = () => {
+          notify('Stripe event stream disconnected. Refresh to reconnect.', 'error');
+          stripeSource?.close();
+        };
+      } catch (err) {
+        notify(`Stripe connection failed: ${err.message}`, 'error');
+      }
+    };
+
+    initStripeBridge();
+
+    return () => {
+      stripeSource?.close();
+    };
+  }, [apiId, notify, stripeSecretKey]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -2178,6 +2364,13 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                  >
                     <RefreshCwIcon size={24} />
                  </button>
+                 <button
+                  onClick={handleSimulateStripeSuccess}
+                  className="icon-action-button"
+                  title="Simulate Stripe Success"
+                 >
+                    🎊
+                 </button>
                  <div className="legend-box">
                     <div className="legend-item"><div className="legend-label">Dials (1 pt)</div><div className="legend-value"><div className="dot" style={{ background: '#facc15' }}></div> Dials</div></div>
                     <div style={{ width: '1px', background: '#262626' }}></div>
@@ -2244,6 +2437,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           </div>
         </div>
       </div>
+      <NewClientOnboardingModal event={latestStripeSuccess} onClose={() => setLatestStripeSuccess(null)} />
     </div>
   );
 };
@@ -2270,12 +2464,12 @@ export default function App() {
   };
   
   // UPDATED: Accept elevenLabsApiKey
-  const handleConnect = (id, token, apiKey, googleToken, elevenLabsApiKey) => { 
-    setCredentials({ id, token, apiKey, googleToken, elevenLabsApiKey }); 
+  const handleConnect = (id, token, apiKey, googleToken, elevenLabsApiKey, stripeSecretKey) => { 
+    setCredentials({ id, token, apiKey, googleToken, elevenLabsApiKey, stripeSecretKey }); 
   };
   
   const handleDemo = () => {
-    setCredentials({ id: 'demo', token: 'demo', apiKey: 'demo', googleToken: null, elevenLabsApiKey: null });
+    setCredentials({ id: 'demo', token: 'demo', apiKey: 'demo', googleToken: null, elevenLabsApiKey: null, stripeSecretKey: null });
   }
   
   const handleLogout = () => { 
@@ -2299,6 +2493,7 @@ export default function App() {
              apiKey={credentials.apiKey}
              googleToken={credentials.googleToken}
              elevenLabsApiKey={credentials.elevenLabsApiKey}
+             stripeSecretKey={credentials.stripeSecretKey}
              onLogout={handleLogout}
              notify={notify}
              toggleTheme={toggleTheme}
