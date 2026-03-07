@@ -1091,6 +1091,73 @@ const toWebSocketUrl = (url) => {
   }
 };
 
+const normalizeStripeSuccessPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+
+  const asText = (value) => String(value || '').trim();
+  const lower = (value) => asText(value).toLowerCase();
+  const firstNonEmpty = (...values) => values.map(asText).find(Boolean) || '';
+
+  const candidates = [
+    payload,
+    payload.payload,
+    payload.data,
+    payload.event,
+    payload.body,
+    payload.data?.payload,
+    payload.data?.event,
+  ].filter((candidate) => candidate && typeof candidate === 'object');
+
+  const findMatch = (...keys) => {
+    for (const candidate of candidates) {
+      for (const key of keys) {
+        const value = candidate?.[key];
+        if (value !== undefined && value !== null && asText(value)) {
+          return value;
+        }
+      }
+    }
+    return '';
+  };
+
+  const type = firstNonEmpty(findMatch('type'));
+  const eventType = firstNonEmpty(findMatch('eventType', 'event_type', 'stripe_event_type'));
+  const isStripePaymentSuccess =
+    lower(type).includes('payment_succeeded') ||
+    lower(type).includes('stripe.payment_succeeded') ||
+    lower(eventType).includes('payment_intent.succeeded') ||
+    lower(eventType).includes('checkout.session.completed') ||
+    lower(eventType).includes('invoice.payment_succeeded') ||
+    lower(eventType).includes('charge.succeeded');
+
+  if (!isStripePaymentSuccess) return null;
+
+  const businessName = firstNonEmpty(
+    findMatch('businessName', 'business_name', 'company_name', 'company'),
+    payload?.data?.customer_details?.business_name,
+    payload?.data?.metadata?.business_name
+  );
+  const customerName = firstNonEmpty(
+    findMatch('customerName', 'customer_name', 'name'),
+    payload?.data?.customer_details?.name,
+    payload?.data?.customer?.name,
+    payload?.data?.customer_email
+  );
+
+  return {
+    type: 'payment_succeeded',
+    eventType: eventType || type || 'stripe.payment_succeeded',
+    eventId: firstNonEmpty(findMatch('eventId', 'event_id', 'id'), `local_${Date.now()}`),
+    mode: firstNonEmpty(findMatch('mode', 'livemode'), 'test'),
+    businessName,
+    customerName,
+    displayName: firstNonEmpty(businessName, customerName, 'New client'),
+    amount: Number(findMatch('amount', 'amount_total', 'amount_received') || 0),
+    currency: firstNonEmpty(findMatch('currency'), 'usd'),
+    created: Number(findMatch('created') || Math.floor(Date.now() / 1000)),
+  };
+};
+
 const extractStatusFromWebhookEvent = (payload) => {
   if (!payload || typeof payload !== 'object') return null;
 
@@ -1553,8 +1620,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
         stream.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
-            if (payload?.type === 'payment_succeeded') {
-              handleStripePopup(payload);
+            const stripePayload = normalizeStripeSuccessPayload(payload);
+            if (stripePayload) {
+              handleStripePopup(stripePayload);
             }
           } catch (err) {
             console.warn('Failed to parse Stripe event stream payload.', err);
@@ -2089,8 +2157,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
           try {
             const payload = JSON.parse(event.data);
 
-            if (payload?.type === 'payment_succeeded') {
-              handleStripePopup(payload);
+            const stripePayload = normalizeStripeSuccessPayload(payload);
+            if (stripePayload) {
+              handleStripePopup(stripePayload);
               return;
             }
 
