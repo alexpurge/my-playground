@@ -570,10 +570,11 @@ const server = createServer(async (req, res) => {
         customerName: body.customerName,
         businessName: body.businessName,
         email: body.email,
-        source: 'stripe',
-        eventType: 'checkout.session.completed',
+        source: body.source || 'dev',
+        eventType: body.eventType || 'checkout.session.completed',
         eventId: body.eventId || `dev_emit_${Date.now()}`,
         mode: body.mode || 'test',
+        timestamp: body.timestamp || Date.now(),
       });
 
       return writeJson(res, 200, { ok: true, event: payload });
