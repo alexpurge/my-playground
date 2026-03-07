@@ -21,8 +21,10 @@ A helper server exists in `server.js` with health, Stripe webhook handling, even
 - `GET /health`
 - `POST /api/stripe/config` (registers Stripe secret key from login)
 - `POST /api/stripe/webhook` (accepts Stripe events, emits success events)
+- `GET /api/latest-success` (returns latest unconsumed Stripe success event and marks it consumed)
 - `GET /api/stripe/events` (SSE stream consumed by dashboard)
 - `POST /api/stripe/simulate-success` (manual UI testing)
+- `POST /api/stripe/create-checkout-session` (creates Stripe Checkout test session with business metadata)
 - `POST /api/stripe/request` (generic Stripe API passthrough)
 
 
@@ -34,4 +36,13 @@ Run it with:
 npm run server
 ```
 
-If you want strict webhook verification, set `STRIPE_WEBHOOK_SECRET` to your Stripe webhook signing secret (`whsec_...`) before launching `npm run server`.
+Set the following env vars before launching `npm run server`:
+
+- `STRIPE_SECRET_KEY=sk_test_...`
+- `STRIPE_WEBHOOK_SECRET=whsec_...`
+
+Webhook forwarding for localhost:
+
+```bash
+stripe listen --forward-to localhost:8787/api/stripe/webhook
+```
