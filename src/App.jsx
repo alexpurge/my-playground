@@ -154,7 +154,7 @@ const styles = `
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: rgba(0, 0, 0, 0.72);
+    background: radial-gradient(circle at center, rgba(35, 20, 8, 0.52) 0%, rgba(0, 0, 0, 0.86) 75%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -163,12 +163,15 @@ const styles = `
 
   .sale-popup-card {
     position: relative;
-    width: min(560px, 92vw);
-    min-height: 340px;
-    border-radius: 1rem;
-    background: #111111;
-    border: 1px solid rgba(249, 115, 22, 0.35);
-    box-shadow: 0 0 30px rgba(249, 115, 22, 0.35);
+    width: min(760px, 96vw);
+    min-height: 388px;
+    border-radius: 1.15rem;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(241, 130, 50, 0.18) 0%, rgba(241, 130, 50, 0.02) 22%, transparent 48%),
+      radial-gradient(circle at 84% 86%, rgba(72, 97, 190, 0.17) 0%, rgba(72, 97, 190, 0.02) 24%, transparent 50%),
+      linear-gradient(135deg, #2a1a12 0%, #14182b 100%);
+    border: 1px solid rgba(138, 164, 255, 0.38);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04) inset, 0 0 44px rgba(245, 110, 0, 0.32);
     overflow: hidden;
   }
 
@@ -191,7 +194,7 @@ const styles = `
   .sale-popup-humming-blob {
     position: absolute;
     border-radius: 999px;
-    opacity: 0.6;
+    opacity: 0.52;
     transform: translate3d(0, 0, 0) scale(1);
     animation-name: popupHummingBlob;
     animation-timing-function: ease-in-out;
@@ -201,7 +204,6 @@ const styles = `
 
   .sale-popup-confetti-piece {
     position: absolute;
-    border-radius: 999px;
     opacity: 0;
     transform: translate3d(0, 0, 0) scale(0.2);
     animation-name: popupConfettiFirework;
@@ -244,40 +246,87 @@ const styles = `
   .sale-popup-content {
     position: relative;
     z-index: 2;
-    min-height: 340px;
-    padding: 2rem;
+    min-height: 388px;
+    padding: 2.2rem 2.5rem 2rem;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 0.8rem;
+    align-items: center;
+    text-align: center;
+    gap: 0.7rem;
   }
 
   .sale-popup-heading {
     margin: 0;
-    color: #f97316;
+    color: #f5ede4;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    font-size: 1.4rem;
+    font-size: clamp(1.9rem, 4.4vw, 3.05rem);
+    font-weight: 900;
+    line-height: 1.1;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+  }
+
+  .sale-popup-heading-icon {
+    margin-right: 0.5rem;
+    font-size: 0.78em;
+    vertical-align: baseline;
+  }
+
+  .sale-popup-inline-burst {
+    position: absolute;
+    z-index: 2;
+    font-size: 1.9rem;
+    opacity: 0.95;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+    pointer-events: none;
+  }
+
+  .sale-popup-inline-burst.left {
+    top: 3.15rem;
+    left: 3.75rem;
+  }
+
+  .sale-popup-inline-burst.mid {
+    top: 6.15rem;
+    left: 47%;
+    transform: translateX(-50%);
   }
 
   .sale-popup-text {
     margin: 0;
-    color: #ffffff;
-    font-size: 1.1rem;
-    font-weight: 600;
+    color: #f3d6b3;
+    font-size: clamp(1.02rem, 1.7vw, 1.95rem);
+    line-height: 1.35;
+    font-weight: 500;
+  }
+
+  .sale-popup-text strong {
+    color: #ffdcb4;
+    font-weight: 800;
+  }
+
+  .sale-popup-subtext {
+    color: #ebd4bc;
+    opacity: 0.95;
+    margin-top: -0.1rem;
+    margin-bottom: 0.35rem;
   }
 
   .sale-popup-button {
     margin-top: 1rem;
     width: 100%;
+    max-width: 600px;
     border: none;
-    border-radius: 0.75rem;
-    padding: 0.85rem 1rem;
-    background: #f97316;
-    color: #111111;
+    border-radius: 0.58rem;
+    padding: 0.95rem 1rem;
+    background: #f25b06;
+    color: #fff8ee;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 1.88rem;
+    line-height: 1;
     cursor: pointer;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
   }
 
   .simulate-sale-button {
@@ -2411,6 +2460,7 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
         delay: `${burstIndex * 0.45 + (pieceIndex % 4) * 0.06}s`,
         duration: `${1.35 + (pieceIndex % 3) * 0.22}s`,
         hue: (burstIndex * 52 + pieceIndex * 23) % 360,
+        shape: (pieceIndex + burstIndex) % 5,
       };
     })
   );
@@ -2438,9 +2488,11 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
               style={{
                 left: piece.left,
                 top: piece.top,
-                width: `${piece.size}px`,
-                height: `${piece.size}px`,
+                width: piece.shape === 0 ? `${piece.size + 7}px` : `${piece.size}px`,
+                height: piece.shape === 0 ? `${piece.size}px` : `${piece.size + (piece.shape === 2 ? 3 : 0)}px`,
                 backgroundColor: `hsl(${piece.hue} 95% 58%)`,
+                borderRadius: piece.shape === 0 ? '2px' : piece.shape === 1 ? '999px' : '4px',
+                transform: piece.shape === 2 ? 'rotate(18deg)' : undefined,
                 '--dx': piece.dx,
                 '--dy': piece.dy,
                 animationDelay: piece.delay,
@@ -2468,9 +2520,12 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
           ))}
         </div>
         <div className="sale-popup-content">
-          <h2 className="sale-popup-heading">🎉 NEW CLIENT ONBOARDING</h2>
-          <p className="sale-popup-text">Payment succeeded for {saleData.businessName}</p>
-          <p className="sale-popup-text">Contact: {saleData.customerName}</p>
+          <span className="sale-popup-inline-burst left" aria-hidden="true">🎉</span>
+          <span className="sale-popup-inline-burst mid" aria-hidden="true">🎉</span>
+          <h2 className="sale-popup-heading"><span className="sale-popup-heading-icon">🎉</span> NEW CLIENT ONBOARDING</h2>
+          <p className="sale-popup-text">Payment succeeded for <strong>{saleData.businessName}</strong>.</p>
+          <p className="sale-popup-text">Contact: <strong>{saleData.customerName}</strong></p>
+          <p className="sale-popup-text sale-popup-subtext">Stripe event: simulated.local.preview (test)</p>
           <button className="sale-popup-button" onClick={onClose}>Awesome — Keep Going</button>
         </div>
       </div>
