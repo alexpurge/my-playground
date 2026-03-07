@@ -136,33 +136,149 @@ const extractCustomFieldValue = (customFields, keyMatchers = []) => {
   return '';
 };
 
-const extractBusinessName = (object) => {
+const extractBusinessName = (object, related = {}) => {
   const metadata = object?.metadata || {};
+  const customerMetadata = related?.customer?.metadata || {};
+  const invoiceMetadata = related?.invoice?.metadata || {};
+  const paymentIntentMetadata = related?.paymentIntent?.metadata || {};
+
   return firstNonEmpty(
     object?.customer_details?.business_name,
     object?.customer_details?.company,
     metadata.business_name,
     metadata.company_name,
     metadata.company,
+    invoiceMetadata.business_name,
+    paymentIntentMetadata.business_name,
+    customerMetadata.business_name,
+    customerMetadata.company_name,
+    customerMetadata.company,
+    related?.invoice?.customer_name,
+    related?.customer?.name,
     extractCustomFieldValue(object?.custom_fields, ['business', 'company'])
   );
 };
 
-const extractCustomerName = (object) => {
+const extractCustomerName = (object, related = {}) => {
   const metadata = object?.metadata || {};
+  const customerMetadata = related?.customer?.metadata || {};
+
   return firstNonEmpty(
     object?.customer_details?.name,
     object?.billing_details?.name,
+    object?.shipping?.name,
+    related?.charge?.billing_details?.name,
+    related?.invoice?.customer_name,
+    related?.customer?.name,
     metadata.customer_name,
+    customerMetadata.customer_name,
     object?.customer_email,
-    object?.receipt_email
+    object?.receipt_email,
+    related?.customer?.email,
+    related?.invoice?.customer_email
   );
 };
 
-const toSuccessPayload = (event) => {
+const fetchExpandedObject = async (event) => {
+  const fallback = { object: event?.data?.object || {}, related: {} };
+  if (!stripeSecretKey) return fallback;
+
   const object = event?.data?.object || {};
-  const businessName = extractBusinessName(object);
-  const customerName = extractCustomerName(object);
+
+  try {
+    if (
+      event?.type === 'checkout.session.completed' ||
+      event?.type === 'checkout.session.async_payment_succeeded'
+    ) {
+      if (!object?.id) return fallback;
+      const params = new URLSearchParams([
+        ['expand[]', 'customer'],
+        ['expand[]', 'payment_intent.customer'],
+        ['expand[]', 'invoice.customer'],
+      ]);
+      const session = await stripeFetch(`checkout/sessions/${object.id}?${params.toString()}`);
+      const paymentIntent = typeof session?.payment_intent === 'object' ? session.payment_intent : null;
+      const invoice = typeof session?.invoice === 'object' ? session.invoice : null;
+
+      return {
+        object: session,
+        related: {
+          customer: typeof session?.customer === 'object' ? session.customer : null,
+          paymentIntent,
+          charge: typeof paymentIntent?.latest_charge === 'object' ? paymentIntent.latest_charge : null,
+          invoice,
+        },
+      };
+    }
+
+    if (event?.type === 'payment_intent.succeeded') {
+      if (!object?.id) return fallback;
+      const params = new URLSearchParams([
+        ['expand[]', 'customer'],
+        ['expand[]', 'latest_charge'],
+      ]);
+      const paymentIntent = await stripeFetch(`payment_intents/${object.id}?${params.toString()}`);
+      return {
+        object: paymentIntent,
+        related: {
+          customer: typeof paymentIntent?.customer === 'object' ? paymentIntent.customer : null,
+          paymentIntent,
+          charge: typeof paymentIntent?.latest_charge === 'object' ? paymentIntent.latest_charge : null,
+          invoice: null,
+        },
+      };
+    }
+
+    if (event?.type === 'invoice.payment_succeeded') {
+      if (!object?.id) return fallback;
+      const params = new URLSearchParams([
+        ['expand[]', 'customer'],
+        ['expand[]', 'payment_intent.customer'],
+      ]);
+      const invoice = await stripeFetch(`invoices/${object.id}?${params.toString()}`);
+      const paymentIntent = typeof invoice?.payment_intent === 'object' ? invoice.payment_intent : null;
+
+      return {
+        object: invoice,
+        related: {
+          customer: typeof invoice?.customer === 'object' ? invoice.customer : null,
+          paymentIntent,
+          charge: typeof paymentIntent?.latest_charge === 'object' ? paymentIntent.latest_charge : null,
+          invoice,
+        },
+      };
+    }
+
+    if (event?.type === 'charge.succeeded') {
+      if (!object?.id) return fallback;
+      const params = new URLSearchParams([
+        ['expand[]', 'customer'],
+        ['expand[]', 'payment_intent.customer'],
+      ]);
+      const charge = await stripeFetch(`charges/${object.id}?${params.toString()}`);
+      const paymentIntent = typeof charge?.payment_intent === 'object' ? charge.payment_intent : null;
+
+      return {
+        object: charge,
+        related: {
+          customer: typeof charge?.customer === 'object' ? charge.customer : null,
+          paymentIntent,
+          charge,
+          invoice: null,
+        },
+      };
+    }
+  } catch (error) {
+    console.warn(`Unable to expand Stripe event ${event?.type || 'unknown'}.`, error?.message || error);
+  }
+
+  return fallback;
+};
+
+const toSuccessPayload = async (event) => {
+  const { object, related } = await fetchExpandedObject(event);
+  const businessName = extractBusinessName(object, related);
+  const customerName = extractCustomerName(object, related);
   const displayName = businessName || customerName || 'New customer';
 
   return {
@@ -300,9 +416,11 @@ const server = createServer(async (req, res) => {
       const isSuccessEvent =
         event?.type === 'payment_intent.succeeded' ||
         event?.type === 'checkout.session.completed' ||
-        event?.type === 'checkout.session.async_payment_succeeded';
+        event?.type === 'checkout.session.async_payment_succeeded' ||
+        event?.type === 'invoice.payment_succeeded' ||
+        event?.type === 'charge.succeeded';
       if (isSuccessEvent) {
-        const payload = toSuccessPayload(event);
+        const payload = await toSuccessPayload(event);
         emitStripeSuccess(payload);
       }
 
