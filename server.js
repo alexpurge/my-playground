@@ -191,6 +191,25 @@ const getObjectId = (candidate) => {
 
 const dedupeCache = new Map();
 
+const STRIPE_SUCCESS_EVENT_TYPES = new Set([
+  'payment_intent.succeeded',
+  'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+  'invoice.payment_succeeded',
+  'charge.succeeded',
+]);
+
+const isSuccessfulPaymentEvent = (event) => {
+  if (!event || !STRIPE_SUCCESS_EVENT_TYPES.has(event.type)) return false;
+
+  if (event.type === 'checkout.session.completed') {
+    const paymentStatus = String(event?.data?.object?.payment_status || '').toLowerCase();
+    return paymentStatus === 'paid' || paymentStatus === 'no_payment_required';
+  }
+
+  return true;
+};
+
 const wasRecentlyEmitted = (key) => {
   const now = Date.now();
   const ttlMs = 1000 * 60 * 30;
@@ -253,11 +272,15 @@ const isNewCustomerPayment = async (event, object, related = {}) => {
   const paymentIntent = related?.paymentIntent;
   const currentPaymentIntentId = getObjectId(paymentIntent || object);
 
-  if (event?.type !== 'payment_intent.succeeded') return false;
+  if (!isSuccessfulPaymentEvent(event)) return false;
   if (hasNewCustomerMetadata(object, paymentIntent, customer)) return true;
 
   const customerId = getObjectId(customer || object?.customer || paymentIntent?.customer);
-  if (!customerId || !stripeSecretKey) return false;
+  if (!customerId || !stripeSecretKey) {
+    // Fail open in local/sandbox setups where key registration is missing.
+    // This keeps onboarding events visible instead of silently dropping them.
+    return true;
+  }
 
   try {
     const existsPriorSuccessfulPayment = await hasPriorSuccessfulPayment(customerId, currentPaymentIntentId);
@@ -530,7 +553,7 @@ const server = createServer(async (req, res) => {
 
       const event = JSON.parse(rawBody.toString('utf8'));
 
-      const isSuccessEvent = event?.type === 'payment_intent.succeeded';
+      const isSuccessEvent = isSuccessfulPaymentEvent(event);
       if (isSuccessEvent) {
         const payload = await toSuccessPayload(event);
         if (payload.shouldEmit) {
