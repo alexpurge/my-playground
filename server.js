@@ -213,34 +213,61 @@ const buildPaymentDedupeKey = (event, object, related = {}) => {
   return firstNonEmpty(paymentIntentId, invoiceId, checkoutSessionId, chargeId, event?.id);
 };
 
-const isNewCustomerPayment = async (event, object, related = {}) => {
-  const customer = related?.customer;
-  const invoice = related?.invoice;
-  const paymentIntent = related?.paymentIntent;
+const hasPriorSuccessfulPayment = async (customerId, currentPaymentIntentId = '') => {
+  let startingAfter = '';
+  let pageCount = 0;
 
-  if (hasNewCustomerMetadata(object, invoice, paymentIntent, customer)) return true;
-
-  if (invoice?.billing_reason === 'subscription_create') return true;
-  if (event?.type?.startsWith('checkout.session') && object?.mode === 'setup') return false;
-
-  const customerId = getObjectId(customer || object?.customer || paymentIntent?.customer || invoice?.customer);
-  if (!customerId || !stripeSecretKey) return false;
-
-  try {
-    const [paymentIntents, invoices] = await Promise.all([
-      stripeFetch(`payment_intents?customer=${encodeURIComponent(customerId)}&limit=2`),
-      stripeFetch(`invoices?customer=${encodeURIComponent(customerId)}&status=paid&limit=2`),
+  while (pageCount < 10) {
+    const params = new URLSearchParams([
+      ['customer', customerId],
+      ['limit', '100'],
     ]);
 
-    const successfulPayments = Number(paymentIntents?.data?.length || 0);
-    const paidInvoices = Number(invoices?.data?.length || 0);
+    if (startingAfter) {
+      params.set('starting_after', startingAfter);
+    }
 
-    if (successfulPayments <= 1 || paidInvoices <= 1) return true;
-  } catch (error) {
-    console.warn(`Unable to evaluate first-payment status for customer ${customerId}.`, error?.message || error);
+    const paymentIntents = await stripeFetch(`payment_intents?${params.toString()}`);
+    const intents = Array.isArray(paymentIntents?.data) ? paymentIntents.data : [];
+
+    for (const paymentIntent of intents) {
+      const paymentIntentId = getObjectId(paymentIntent);
+      if (paymentIntentId && paymentIntentId === currentPaymentIntentId) continue;
+      if (paymentIntent?.status === 'succeeded') return true;
+    }
+
+    if (!paymentIntents?.has_more || intents.length === 0) {
+      return false;
+    }
+
+    startingAfter = getObjectId(intents[intents.length - 1]);
+    if (!startingAfter) return false;
+    pageCount += 1;
   }
 
   return false;
+};
+
+const isNewCustomerPayment = async (event, object, related = {}) => {
+  const customer = related?.customer;
+  const paymentIntent = related?.paymentIntent;
+  const currentPaymentIntentId = getObjectId(paymentIntent || object);
+
+  if (event?.type !== 'payment_intent.succeeded') return false;
+  if (hasNewCustomerMetadata(object, paymentIntent, customer)) return true;
+
+  const customerId = getObjectId(customer || object?.customer || paymentIntent?.customer);
+  if (!customerId || !stripeSecretKey) return false;
+
+  try {
+    const existsPriorSuccessfulPayment = await hasPriorSuccessfulPayment(customerId, currentPaymentIntentId);
+    return !existsPriorSuccessfulPayment;
+  } catch (error) {
+    console.warn(`Unable to evaluate first-payment status for customer ${customerId}.`, error?.message || error);
+    // Prefer fail-open so onboarding still appears for first-time customer payments
+    // even when the Stripe list endpoint is temporarily unavailable.
+    return true;
+  }
 };
 
 const extractCustomerName = (object, related = {}) => {
@@ -300,6 +327,7 @@ const fetchExpandedObject = async (event) => {
       const params = new URLSearchParams([
         ['expand[]', 'customer'],
         ['expand[]', 'latest_charge'],
+        ['expand[]', 'latest_charge.customer'],
       ]);
       const paymentIntent = await stripeFetch(`payment_intents/${object.id}?${params.toString()}`);
       return {
@@ -502,12 +530,7 @@ const server = createServer(async (req, res) => {
 
       const event = JSON.parse(rawBody.toString('utf8'));
 
-      const isSuccessEvent =
-        event?.type === 'payment_intent.succeeded' ||
-        event?.type === 'checkout.session.completed' ||
-        event?.type === 'checkout.session.async_payment_succeeded' ||
-        event?.type === 'invoice.payment_succeeded' ||
-        event?.type === 'charge.succeeded';
+      const isSuccessEvent = event?.type === 'payment_intent.succeeded';
       if (isSuccessEvent) {
         const payload = await toSuccessPayload(event);
         if (payload.shouldEmit) {

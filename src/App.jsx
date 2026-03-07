@@ -1237,6 +1237,7 @@ const NewClientOnboardingModal = ({ event, onClose }) => {
         </div>
         <h2 className="onboarding-title">🎉 New Client Onboarding 🎉</h2>
         <p className="onboarding-subtitle">Payment succeeded for <strong>{event.businessName || event.displayName || 'a new client business'}</strong>.</p>
+        <p className="onboarding-subtitle">Contact: <strong>{event.customerName || 'Unknown contact'}</strong></p>
         <p className="onboarding-subtitle" style={{ opacity: 0.85 }}>Stripe event: {event.eventType} ({event.mode || 'test'})</p>
         <button type="button" className="btn-primary" onClick={onClose} style={{ marginTop: '2rem' }}>
           Awesome — Keep Going
@@ -1501,8 +1502,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
 
   const handleStripePopup = (payload) => {
     const displayName = payload?.businessName || payload?.displayName || 'new client business';
-    setLatestStripeSuccess({ ...payload, displayName, businessName: payload?.businessName || displayName });
-    notify(`Stripe payment succeeded for ${displayName}.`, 'success');
+    const contactName = payload?.customerName || 'Unknown contact';
+    setLatestStripeSuccess({ ...payload, displayName, businessName: payload?.businessName || displayName, customerName: contactName });
+    notify(`Stripe payment succeeded for ${displayName} (${contactName}).`, 'success');
   };
 
   const handleSimulateStripeSuccess = () => {
