@@ -1473,7 +1473,7 @@ const LoadingScreen = ({ status, error, onRetry, onCancel }) => (
 );
 
 // SCREEN 3: DASHBOARD (Data Loading -> Display)
-const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, stripeSecretKey, onLogout, notify, toggleTheme, theme }) => {
+const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchStatus, setFetchStatus] = useState('Initializing...');
@@ -1503,64 +1503,14 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
     notify(`Stripe payment succeeded for ${payload.customerName || 'new customer'}.`, 'success');
   };
 
-  const handleSimulateStripeSuccess = async () => {
-    try {
-      const response = await fetch('http://localhost:8787/api/stripe/simulate-success', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName: 'Simulation Customer' }),
-      });
-      if (!response.ok) throw new Error(`Simulation failed (${response.status})`);
-      notify('Stripe success simulation sent.', 'success');
-    } catch (err) {
-      notify(`Could not simulate Stripe success: ${err.message}`, 'error');
-    }
+  const handleSimulateStripeSuccess = () => {
+    handleStripePopup({
+      type: 'payment_succeeded',
+      eventType: 'simulated.local.preview',
+      customerName: 'Simulation Customer',
+      created: Math.floor(Date.now() / 1000),
+    });
   };
-
-  useEffect(() => {
-    if (apiId === 'demo' || !stripeSecretKey) return undefined;
-
-    let stripeSource;
-
-    const initStripeBridge = async () => {
-      try {
-        const configRes = await fetch('http://localhost:8787/api/stripe/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ secretKey: stripeSecretKey }),
-        });
-
-        if (!configRes.ok) {
-          throw new Error('Stripe key could not be registered with helper server.');
-        }
-
-        stripeSource = new EventSource('http://localhost:8787/api/stripe/events');
-        stripeSource.onmessage = (event) => {
-          try {
-            const parsed = JSON.parse(event.data);
-            if (parsed?.type === 'payment_succeeded') {
-              handleStripePopup(parsed);
-            }
-          } catch {
-            // ignore malformed SSE data
-          }
-        };
-
-        stripeSource.onerror = () => {
-          notify('Stripe event stream disconnected. Refresh to reconnect.', 'error');
-          stripeSource?.close();
-        };
-      } catch (err) {
-        notify(`Stripe connection failed: ${err.message}`, 'error');
-      }
-    };
-
-    initStripeBridge();
-
-    return () => {
-      stripeSource?.close();
-    };
-  }, [apiId, notify, stripeSecretKey]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -2073,6 +2023,12 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
         socket.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
+
+            if (payload?.type === 'payment_succeeded') {
+              handleStripePopup(payload);
+              return;
+            }
+
             const userIds = extractUserIdsFromWebhookEvent(payload);
             if (userIds.length === 0) return;
 
@@ -2493,7 +2449,6 @@ export default function App() {
              apiKey={credentials.apiKey}
              googleToken={credentials.googleToken}
              elevenLabsApiKey={credentials.elevenLabsApiKey}
-             stripeSecretKey={credentials.stripeSecretKey}
              onLogout={handleLogout}
              notify={notify}
              toggleTheme={toggleTheme}
