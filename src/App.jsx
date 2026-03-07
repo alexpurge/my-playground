@@ -1149,9 +1149,12 @@ const normalizeStripeSuccessPayload = (payload) => {
     eventType: eventType || type || 'stripe.payment_succeeded',
     eventId: firstNonEmpty(findMatch('eventId', 'event_id', 'id'), `local_${Date.now()}`),
     mode: firstNonEmpty(findMatch('mode', 'livemode'), 'test'),
+    source: firstNonEmpty(findMatch('source'), 'stripe'),
     businessName,
     customerName,
+    email: firstNonEmpty(findMatch('email', 'customer_email'), payload?.data?.customer_details?.email),
     displayName: firstNonEmpty(businessName, customerName, 'New client'),
+    timestamp: Number(findMatch('timestamp') || Date.now()),
     amount: Number(findMatch('amount', 'amount_total', 'amount_received') || 0),
     currency: firstNonEmpty(findMatch('currency'), 'usd'),
     created: Number(findMatch('created') || Math.floor(Date.now() / 1000)),
@@ -1616,9 +1619,30 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
     }).catch(() => {});
   };
 
-  useEffect(() => {
-    if (apiId === 'demo') return undefined;
+  const handleTestBackendSuccessEvent = async () => {
+    try {
+      const response = await fetch(`${STRIPE_BRIDGE_BASE_URL}/api/dev/emit-stripe-success`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: 'Test Person',
+          businessName: 'Test Business',
+          email: 'test@example.com',
+        }),
+      });
 
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.message || 'Backend dev emit endpoint failed.');
+      }
+
+      notify('Backend success event emitted. Waiting for SSE/poll popup.', 'success');
+    } catch (error) {
+      notify(`Backend success event test failed: ${error.message || 'Unknown error'}`, 'error');
+    }
+  };
+
+  useEffect(() => {
     let isCancelled = false;
     let stream = null;
 
@@ -1666,11 +1690,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
       isCancelled = true;
       if (stream) stream.close();
     };
-  }, [apiId, stripeSecretKey]);
+  }, [stripeSecretKey]);
 
   useEffect(() => {
-    if (apiId === 'demo') return undefined;
-
     let isCancelled = false;
     let timerId = null;
 
@@ -1703,7 +1725,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
       isCancelled = true;
       if (timerId) clearInterval(timerId);
     };
-  }, [apiId]);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -2505,6 +2527,13 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
                   title="Simulate Stripe Success"
                 >
                   🎊
+                </button>
+                <button
+                  onClick={handleTestBackendSuccessEvent}
+                  className="icon-action-button"
+                  title="Test Backend Success Event"
+                >
+                  Test Backend Success Event
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.1em' }}>
