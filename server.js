@@ -567,9 +567,9 @@ const server = createServer(async (req, res) => {
     try {
       const body = await parseJsonBody(req);
       const payload = persistAndEmitSuccessEvent({
-        customerName: body.customerName,
-        businessName: body.businessName,
-        email: body.email,
+        customerName: body.customerName || 'Test Person',
+        businessName: body.businessName || 'Test Business',
+        email: body.email || 'test@example.com',
         source: body.source || 'dev',
         eventType: body.eventType || 'checkout.session.completed',
         eventId: body.eventId || `dev_emit_${Date.now()}`,
@@ -577,7 +577,7 @@ const server = createServer(async (req, res) => {
         timestamp: body.timestamp || Date.now(),
       });
 
-      return writeJson(res, 200, { ok: true, event: payload });
+      return writeJson(res, 200, { success: true, ok: true, event: payload });
     } catch (error) {
       return writeJson(res, 400, { ok: false, message: error.message || 'Failed to emit dev success event.' });
     }
