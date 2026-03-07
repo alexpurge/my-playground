@@ -13,7 +13,7 @@ const ELEVENLABS_MODEL = "eleven_multilingual_v2";
 const ELEVENLABS_VOICE_SETTINGS = {
   stability: 1.0,       // 100%
   similarity_boost: 1.0, // 100%
-  style: 0.3,           // 30%
+  style: 0.49,          // 49%
   use_speaker_boost: true,
 };
 const ELEVENLABS_SPEED = 0.87; // 0.87
@@ -1426,14 +1426,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   // --- ELEVENLABS ANNOUNCEMENT FUNCTION ---
   // UPDATED: Now uses passed 'elevenLabsApiKey' prop
   const playAnnouncement = async (text) => {
-    const nowBrisbane = getBrisbaneTime();
-    const hour = nowBrisbane.getHours();
-    const inMorningWindow = hour >= 8 && hour < 12;
-    const inAfternoonWindow = hour >= 13 && hour < 17;
-
-    if (!inMorningWindow && !inAfternoonWindow) {
-      return;
-    }
 
     if (!elevenLabsApiKey || !ELEVENLABS_VOICE_ID) {
       notify("ElevenLabs configuration missing.", 'error');
@@ -1467,6 +1459,14 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       console.error("ElevenLabs Error:", e);
       notify("Failed to generate speech. Check API Key.", 'error');
     }
+  };
+
+  const getUniqueRepNames = (bookingsBatch) => {
+    const names = bookingsBatch
+      .map((b) => getRepName(b.creator?.email || b.organizer?.email || ""))
+      .filter(Boolean);
+
+    return [...new Set(names)];
   };
 
   const fetchPage = async (page, fromDate, headers, baseUrl) => {
@@ -1578,8 +1578,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       });
       
       if (preStartEvents.length > 0) {
-          const reps = preStartEvents.map(b => getRepName(b.creator?.email || ""));
-          const uniqueReps = [...new Set(reps)];
+          const uniqueReps = getUniqueRepNames(preStartEvents);
           const namesString = uniqueReps.join(', ');
           const count = preStartEvents.length;
           const opWord = count === 1 ? "op" : "ops";
@@ -1603,8 +1602,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
          if (post5Events.length > 0) {
              const batchKey = `post-5-${currentTime.getHours()}`;
              if (!announcedEventIds.current.has(batchKey)) {
-                 const reps = post5Events.map(b => getRepName(b.creator?.email || ""));
-                 const uniqueReps = [...new Set(reps)];
+                 const uniqueReps = getUniqueRepNames(post5Events);
                  const namesString = uniqueReps.join(', ');
                  const text = `${namesString}, please call any ops that did not show again`;
                  playAnnouncement(text);
@@ -1626,8 +1624,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
          if (post15Events.length > 0) {
              const batchKey = `post-15-${currentTime.getHours()}`;
              if (!announcedEventIds.current.has(batchKey)) {
-                 const reps = post15Events.map(b => getRepName(b.creator?.email || ""));
-                 const uniqueReps = [...new Set(reps)];
+                 const uniqueReps = getUniqueRepNames(post15Events);
                  const namesString = uniqueReps.join(', ');
                  const text = `${namesString}, please call any ops that did not show one last time.`;
                  playAnnouncement(text);
@@ -2004,36 +2001,33 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
   const upcomingHourRepNames = Object.keys(upcomingHourRepBookingCounts);
 
-  // NEW: Speak Next Hour Button Handler
+  // Speak button handler: announces upcoming ops for the next hour window
   const handleSpeakNextHour = () => {
     notify("Generating audio announcement...", 'success');
     const nowTime = currentTime.getTime();
+    const nextHourTime = nowTime + (60 * 60 * 1000);
     
-    // 1. Find the earliest future (or very recent) booking
-    const sortedUpcoming = bookings
+    const nextHourBookings = bookings
       .filter(b => b.start?.dateTime)
       .map(b => ({ ...b, time: new Date(b.start.dateTime).getTime() }))
-      .filter(b => b.time > (nowTime - 60000)) // Only future or very recent
+      .filter(b => b.time >= nowTime && b.time <= nextHourTime)
       .sort((a, b) => a.time - b.time);
 
-    if (sortedUpcoming.length === 0) {
+    if (nextHourBookings.length === 0) {
         playAnnouncement("There are no upcoming bookings scheduled.");
         return;
     }
 
-    // 2. Group all bookings that start at that SAME earliest time
-    const nextSlotTime = sortedUpcoming[0].time;
-    const batch = sortedUpcoming.filter(b => Math.abs(b.time - nextSlotTime) < 60000); // within 1 min
+    const nextSlotTime = nextHourBookings[0].time;
 
-    // 3. Calculate Minutes Away
+    // Minutes until earliest event in the upcoming one-hour window
     const minutesAway = Math.max(1, Math.round((nextSlotTime - nowTime) / 60000));
-    const minWord = minutesAway === 1 ? "minute" : "minutes"; // New rule for minute/minutes
+    const minWord = minutesAway === 1 ? "minute" : "minutes";
 
-    // 4. Construct Text
-    const reps = batch.map(b => getRepName(b.creator?.email || ""));
-    const uniqueReps = [...new Set(reps)];
+    // Construct speech with total upcoming ops in next hour and unique rep names
+    const uniqueReps = getUniqueRepNames(nextHourBookings);
     const namesString = uniqueReps.join(', ');
-    const count = batch.length;
+    const count = nextHourBookings.length;
     const opWord = count === 1 ? "op" : "ops";
     const verb = count === 1 ? "is" : "are";
 

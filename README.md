@@ -16,11 +16,7 @@ npm run dev
 
 ## Optional helper server
 
-<<<<<<< HEAD
 A small helper server exists in `server.js` and currently exposes:
-=======
-A minimal helper server exists in `server.js` and exposes only:
->>>>>>> parent of a898c37 (Add Stripe webhook bridge and onboarding celebration flow)
 
 - `GET /health`
 
