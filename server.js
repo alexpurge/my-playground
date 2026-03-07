@@ -3,30 +3,196 @@ import { URL } from 'node:url';
 
 const port = Number(globalThis.process?.env?.PORT || 8787);
 
+let stripeSecretKey = '';
+const sseClients = new Set();
+
 const writeJson = (res, status, payload) => {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Stripe-Signature',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   });
   res.end(JSON.stringify(payload));
 };
 
-const server = createServer((req, res) => {
+const collectRawBody = (req) =>
+  new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(globalThis.Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+
+const parseJsonBody = async (req) => {
+  const raw = await collectRawBody(req);
+  if (!raw.length) return {};
+  return JSON.parse(raw.toString('utf8'));
+};
+
+const emitStripeSuccess = (payload) => {
+  const data = `data: ${JSON.stringify(payload)}\n\n`;
+  sseClients.forEach((client) => client.write(data));
+};
+
+const stripeFetch = async (path, options = {}) => {
+  if (!stripeSecretKey) throw new Error('Stripe key is not configured.');
+
+  const response = await fetch(`https://api.stripe.com/v1/${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey}`,
+      ...(options.headers || {}),
+    },
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json?.error?.message || `Stripe API request failed (${response.status}).`);
+  }
+  return json;
+};
+
+const toSuccessPayload = (event) => {
+  const object = event?.data?.object || {};
+  const customerName = object.customer_details?.name || object.billing_details?.name || object.customer_email || object.receipt_email || 'New customer';
+
+  return {
+    type: 'payment_succeeded',
+    eventType: event.type,
+    eventId: event.id,
+    customerName,
+    amount: Number(object.amount_received || object.amount_total || object.amount || 0),
+    currency: object.currency || 'usd',
+    created: event.created || Math.floor(Date.now() / 1000),
+  };
+};
+
+const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Stripe-Signature',
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     });
     return res.end();
   }
 
   if (req.method === 'GET' && url.pathname === '/health') {
-    return writeJson(res, 200, { ok: true, message: 'Server running. Webhook bridge removed; dashboard uses direct polling.' });
+    return writeJson(res, 200, {
+      ok: true,
+      message: 'Server running with Stripe webhook + event bridge.',
+      stripeConfigured: Boolean(stripeSecretKey),
+      sseClients: sseClients.size,
+    });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/stripe/config') {
+    try {
+      const body = await parseJsonBody(req);
+      const secretKey = String(body?.secretKey || '').trim();
+
+      if (!secretKey.startsWith('sk_')) {
+        return writeJson(res, 400, { ok: false, message: 'Provide a valid Stripe secret key (sk_...).'});
+      }
+
+      stripeSecretKey = secretKey;
+      return writeJson(res, 200, { ok: true, message: 'Stripe key configured.' });
+    } catch (error) {
+      return writeJson(res, 400, { ok: false, message: error.message || 'Invalid request.' });
+    }
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/stripe/events') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+    });
+
+    res.write(`data: ${JSON.stringify({ type: 'connected', now: Date.now() })}\n\n`);
+    sseClients.add(res);
+
+    req.on('close', () => {
+      sseClients.delete(res);
+    });
+
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/stripe/simulate-success') {
+    try {
+      const body = await parseJsonBody(req);
+      const payload = {
+        type: 'payment_succeeded',
+        eventType: 'checkout.session.completed',
+        eventId: `sim_${Date.now()}`,
+        customerName: body.customerName || 'Simulation Customer',
+        amount: 10000,
+        currency: 'usd',
+        created: Math.floor(Date.now() / 1000),
+      };
+      emitStripeSuccess(payload);
+      return writeJson(res, 200, { ok: true, payload });
+    } catch (error) {
+      return writeJson(res, 400, { ok: false, message: error.message || 'Simulation failed.' });
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/stripe/request') {
+    try {
+      const body = await parseJsonBody(req);
+      const method = String(body?.method || 'GET').toUpperCase();
+      const path = String(body?.path || '').replace(/^\/+/, '');
+
+      if (!path) {
+        return writeJson(res, 400, { ok: false, message: 'A Stripe API path is required.' });
+      }
+
+      const payload = body?.payload || null;
+      const options = { method };
+
+      if (payload && method !== 'GET') {
+        options.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        options.body = new URLSearchParams(payload).toString();
+      }
+
+      const data = await stripeFetch(path, options);
+      return writeJson(res, 200, { ok: true, data });
+    } catch (error) {
+      return writeJson(res, 400, { ok: false, message: error.message || 'Stripe request failed.' });
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/stripe/webhook') {
+    const webhookSecret = globalThis.process?.env?.STRIPE_WEBHOOK_SECRET;
+
+    try {
+      const rawBody = await collectRawBody(req);
+      const signature = req.headers['stripe-signature'];
+      if (!signature) {
+        return writeJson(res, 400, { ok: false, message: 'Missing Stripe-Signature header.' });
+      }
+
+      if (webhookSecret && signature !== webhookSecret) {
+        return writeJson(res, 400, { ok: false, message: 'Webhook signature validation failed.' });
+      }
+
+      const event = JSON.parse(rawBody.toString('utf8'));
+
+      const isSuccessEvent = event?.type === 'payment_intent.succeeded' || event?.type === 'checkout.session.completed';
+      if (isSuccessEvent) {
+        const payload = toSuccessPayload(event);
+        emitStripeSuccess(payload);
+      }
+
+      return writeJson(res, 200, { ok: true, received: true });
+    } catch (error) {
+      return writeJson(res, 400, { ok: false, message: `Webhook error: ${error.message}` });
+    }
   }
 
   return writeJson(res, 404, { ok: false, message: 'Not found' });

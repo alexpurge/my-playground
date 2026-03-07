@@ -16,12 +16,19 @@ npm run dev
 
 ## Optional helper server
 
-A minimal helper server exists in `server.js` and exposes only:
+A helper server exists in `server.js` with health, Stripe webhook handling, event streaming, and simulation endpoints:
 
 - `GET /health`
+- `POST /api/stripe/config` (registers Stripe secret key from login)
+- `POST /api/stripe/webhook` (accepts Stripe events, emits success events)
+- `GET /api/stripe/events` (SSE stream consumed by dashboard)
+- `POST /api/stripe/simulate-success` (manual UI testing)
+- `POST /api/stripe/request` (generic Stripe API passthrough)
 
 Run it with:
 
 ```bash
 npm run server
 ```
+
+If you want strict webhook verification, set `STRIPE_WEBHOOK_SECRET` before launching `npm run server`.
