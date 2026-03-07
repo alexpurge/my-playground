@@ -25,10 +25,13 @@ A helper server exists in `server.js` with health, Stripe webhook handling, even
 - `POST /api/stripe/simulate-success` (manual UI testing)
 - `POST /api/stripe/request` (generic Stripe API passthrough)
 
+
+The frontend listens to this helper via `EventSource` at `VITE_STRIPE_BRIDGE_URL` (default `http://localhost:8787`) and auto-registers the Stripe secret key from the login form so real Stripe webhook events trigger the onboarding modal.
+
 Run it with:
 
 ```bash
 npm run server
 ```
 
-If you want strict webhook verification, set `STRIPE_WEBHOOK_SECRET` before launching `npm run server`.
+If you want strict webhook verification, set `STRIPE_WEBHOOK_SECRET` to your Stripe webhook signing secret (`whsec_...`) before launching `npm run server`.

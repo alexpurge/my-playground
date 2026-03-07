@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
 
 const port = Number(globalThis.process?.env?.PORT || 8787);
@@ -28,6 +29,61 @@ const parseJsonBody = async (req) => {
   const raw = await collectRawBody(req);
   if (!raw.length) return {};
   return JSON.parse(raw.toString('utf8'));
+};
+
+const parseStripeSignatureHeader = (headerValue) => {
+  if (!headerValue || typeof headerValue !== 'string') {
+    return { timestamp: null, signatures: [] };
+  }
+
+  const parts = headerValue.split(',').map((segment) => segment.trim());
+  let timestamp = null;
+  const signatures = [];
+
+  parts.forEach((part) => {
+    const [key, value] = part.split('=');
+    if (!key || !value) return;
+    if (key === 't') {
+      timestamp = Number(value);
+      return;
+    }
+    if (key === 'v1') {
+      signatures.push(value);
+    }
+  });
+
+  return { timestamp, signatures };
+};
+
+const safeCompareHex = (a, b) => {
+  if (!a || !b) return false;
+  try {
+    const bufferA = globalThis.Buffer.from(a, 'hex');
+    const bufferB = globalThis.Buffer.from(b, 'hex');
+    if (bufferA.length !== bufferB.length) return false;
+    return timingSafeEqual(bufferA, bufferB);
+  } catch {
+    return false;
+  }
+};
+
+const verifyStripeWebhook = (rawBody, signatureHeader, webhookSecret, toleranceSeconds = 300) => {
+  const { timestamp, signatures } = parseStripeSignatureHeader(signatureHeader);
+  if (!timestamp || signatures.length === 0) {
+    throw new Error('Malformed Stripe-Signature header.');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - timestamp) > toleranceSeconds) {
+    throw new Error('Stripe webhook signature is outside the tolerated timestamp window.');
+  }
+
+  const signedPayload = `${timestamp}.${rawBody.toString('utf8')}`;
+  const expected = createHmac('sha256', webhookSecret).update(signedPayload).digest('hex');
+  const matches = signatures.some((candidate) => safeCompareHex(candidate, expected));
+  if (!matches) {
+    throw new Error('Webhook signature validation failed.');
+  }
 };
 
 const emitStripeSuccess = (payload) => {
@@ -177,8 +233,8 @@ const server = createServer(async (req, res) => {
         return writeJson(res, 400, { ok: false, message: 'Missing Stripe-Signature header.' });
       }
 
-      if (webhookSecret && signature !== webhookSecret) {
-        return writeJson(res, 400, { ok: false, message: 'Webhook signature validation failed.' });
+      if (webhookSecret) {
+        verifyStripeWebhook(rawBody, String(signature), webhookSecret);
       }
 
       const event = JSON.parse(rawBody.toString('utf8'));

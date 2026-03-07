@@ -18,6 +18,7 @@ const ELEVENLABS_VOICE_SETTINGS = {
 };
 const ELEVENLABS_SPEED = 0.87; // 0.87
 const BOOKINGS_CALENDAR_ID = 'meta.bookings@purgedigital.com.au';
+const STRIPE_BRIDGE_BASE_URL = (import.meta.env.VITE_STRIPE_BRIDGE_URL || 'http://localhost:8787').replace(/\/$/, '');
 
 // -----------------------------------------------------------------------------
 // INLINE ICONS (Self-contained, no external dependencies)
@@ -1473,7 +1474,7 @@ const LoadingScreen = ({ status, error, onRetry, onCancel }) => (
 );
 
 // SCREEN 3: DASHBOARD (Data Loading -> Display)
-const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme }) => {
+const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, stripeSecretKey, onLogout, notify, toggleTheme, theme }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchStatus, setFetchStatus] = useState('Initializing...');
@@ -1504,13 +1505,71 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   };
 
   const handleSimulateStripeSuccess = () => {
-    handleStripePopup({
-      type: 'payment_succeeded',
-      eventType: 'simulated.local.preview',
-      customerName: 'Simulation Customer',
-      created: Math.floor(Date.now() / 1000),
+    fetch(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/simulate-success`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerName: 'Simulation Customer' }),
+    }).catch(() => {
+      // fallback path for local UI testing if helper server is down
+      handleStripePopup({
+        type: 'payment_succeeded',
+        eventType: 'simulated.local.preview',
+        customerName: 'Simulation Customer',
+        created: Math.floor(Date.now() / 1000),
+      });
     });
   };
+
+  useEffect(() => {
+    if (apiId === 'demo') return undefined;
+
+    let isCancelled = false;
+    let stream = null;
+
+    const connectStripeBridge = async () => {
+      try {
+        if (stripeSecretKey) {
+          const configResponse = await fetch(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ secretKey: stripeSecretKey }),
+          });
+
+          const configPayload = await configResponse.json();
+          if (!configResponse.ok) {
+            throw new Error(configPayload?.message || 'Failed to configure Stripe bridge.');
+          }
+        }
+
+        if (isCancelled) return;
+
+        stream = new EventSource(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/events`);
+        stream.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload?.type === 'payment_succeeded') {
+              handleStripePopup(payload);
+            }
+          } catch (err) {
+            console.warn('Failed to parse Stripe event stream payload.', err);
+          }
+        };
+
+        stream.onerror = () => {
+          console.warn('Stripe event stream disconnected.');
+        };
+      } catch (err) {
+        console.warn('Failed to initialize Stripe bridge.', err);
+      }
+    };
+
+    connectStripeBridge();
+
+    return () => {
+      isCancelled = true;
+      if (stream) stream.close();
+    };
+  }, [apiId, stripeSecretKey]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -2451,6 +2510,7 @@ export default function App() {
              apiKey={credentials.apiKey}
              googleToken={credentials.googleToken}
              elevenLabsApiKey={credentials.elevenLabsApiKey}
+             stripeSecretKey={credentials.stripeSecretKey}
              onLogout={handleLogout}
              notify={notify}
              toggleTheme={toggleTheme}
