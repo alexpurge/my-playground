@@ -92,18 +92,30 @@ const emitStripeSuccess = (payload) => {
   sseClients.forEach((client) => client.write(data));
 };
 
+const normalizeSuccessEvent = ({ customerName, businessName, email, source, eventId, eventType, mode, timestamp }) => ({
+  customerName: firstNonEmpty(customerName),
+  businessName: firstNonEmpty(businessName),
+  email: firstNonEmpty(email),
+  source: firstNonEmpty(source) || 'stripe',
+  timestamp: Number(timestamp) || Date.now(),
+  eventId: firstNonEmpty(eventId) || `evt_${Date.now()}`,
+  eventType: firstNonEmpty(eventType) || 'checkout.session.completed',
+  mode: firstNonEmpty(mode) || 'test',
+  type: 'payment_succeeded',
+});
+
 const logStripeDebug = (step, details = {}) => {
   const serialized = JSON.stringify(details);
   console.log(`[StripeDebug] ${step} ${serialized}`);
 };
 
-const storeSuccessEvent = ({ customerName, businessName, email, source, eventId, eventType, mode }) => {
+const storeSuccessEvent = ({ customerName, businessName, email, source, eventId, eventType, mode, timestamp }) => {
   const record = {
     id: eventId || `evt_${Date.now()}`,
     customerName: firstNonEmpty(customerName),
     businessName: firstNonEmpty(businessName),
     email: firstNonEmpty(email),
-    timestamp: Date.now(),
+    timestamp: Number(timestamp) || Date.now(),
     shown: false,
     consumedAt: null,
     source: firstNonEmpty(source) || 'stripe',
@@ -123,6 +135,20 @@ const storeSuccessEvent = ({ customerName, businessName, email, source, eventId,
     });
   }
   return record;
+};
+
+const persistAndEmitSuccessEvent = (rawPayload) => {
+  const normalized = normalizeSuccessEvent(rawPayload || {});
+  const stored = storeSuccessEvent(normalized);
+
+  const payload = {
+    ...normalized,
+    eventId: stored.id,
+    displayName: normalized.businessName || normalized.customerName || 'New client',
+  };
+
+  emitStripeSuccess(payload);
+  return payload;
 };
 
 const consumeLatestSuccessEvent = (source = 'stripe') => {
@@ -537,6 +563,25 @@ const server = createServer(async (req, res) => {
     return writeJson(res, 200, { ok: true, event: latest });
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/dev/emit-stripe-success') {
+    try {
+      const body = await parseJsonBody(req);
+      const payload = persistAndEmitSuccessEvent({
+        customerName: body.customerName,
+        businessName: body.businessName,
+        email: body.email,
+        source: 'stripe',
+        eventType: 'checkout.session.completed',
+        eventId: body.eventId || `dev_emit_${Date.now()}`,
+        mode: body.mode || 'test',
+      });
+
+      return writeJson(res, 200, { ok: true, event: payload });
+    } catch (error) {
+      return writeJson(res, 400, { ok: false, message: error.message || 'Failed to emit dev success event.' });
+    }
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/stripe/config') {
     try {
       const body = await parseJsonBody(req);
@@ -588,8 +633,7 @@ const server = createServer(async (req, res) => {
         created: Math.floor(Date.now() / 1000),
         source: 'simulation',
       };
-      storeSuccessEvent(payload);
-      emitStripeSuccess(payload);
+      persistAndEmitSuccessEvent(payload);
       return writeJson(res, 200, { ok: true, payload });
     } catch (error) {
       return writeJson(res, 400, { ok: false, message: error.message || 'Simulation failed.' });
@@ -708,9 +752,7 @@ const server = createServer(async (req, res) => {
           businessName: payload.businessName,
         });
         if (payload.shouldEmit) {
-          const payloadWithSource = { ...payload, source: 'stripe' };
-          storeSuccessEvent(payloadWithSource);
-          emitStripeSuccess(payloadWithSource);
+          persistAndEmitSuccessEvent({ ...payload, source: 'stripe' });
         } else {
           logStripeDebug('success event skipped', {
             eventId: payload.eventId,
