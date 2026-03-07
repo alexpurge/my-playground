@@ -885,26 +885,16 @@ const getBrisbaneTime = () => {
 
 const calculateTargetPace = () => {
   const now = getBrisbaneTime();
-  const dayOfWeek = now.getDay(); // 0=Sun ... 5=Fri
   const startOfDay = new Date(now).setHours(8, 0, 0, 0); 
   const lunchStart = new Date(now).setHours(12, 0, 0, 0); 
   const lunchEnd = new Date(now).setHours(13, 0, 0, 0); 
   const endTime = new Date(now).setHours(17, 0, 0, 0);   
   const currentTime = now.getTime();
 
-  const isMondayToThursday = dayOfWeek >= 1 && dayOfWeek <= 4;
-  const isFriday = dayOfWeek === 5;
-
-  const fullDayDialsTarget = isMondayToThursday ? 200 : (isFriday ? 150 : 0);
-  const fullDayTalkMinutesTarget = isMondayToThursday ? 300 : (isFriday ? 250 : 0);
-
-  const morningActiveDuration = lunchStart - startOfDay;
-  const afternoonActiveDuration = endTime - lunchEnd;
-  const totalActiveDuration = morningActiveDuration + afternoonActiveDuration;
-  const middayProgress = totalActiveDuration > 0 ? morningActiveDuration / totalActiveDuration : 0;
-
-  const middayDialsTarget = Math.floor(fullDayDialsTarget * middayProgress);
-  const middayTalkMinutesTarget = Math.floor(fullDayTalkMinutesTarget * middayProgress);
+  const fullDayDialsTarget = 200;
+  const fullDayTalkMinutesTarget = 300;
+  const middayDialsTarget = 100;
+  const middayTalkMinutesTarget = 150;
 
   let targetDials = 0;
   let targetTalkMinutes = 0;
@@ -1434,15 +1424,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   // --- ELEVENLABS ANNOUNCEMENT FUNCTION ---
   // UPDATED: Now uses passed 'elevenLabsApiKey' prop
   const playAnnouncement = async (text) => {
-    const nowBrisbane = getBrisbaneTime();
-    const hour = nowBrisbane.getHours();
-    const inMorningWindow = hour >= 8 && hour < 12;
-    const inAfternoonWindow = hour >= 13 && hour < 17;
-
-    if (!inMorningWindow && !inAfternoonWindow) {
-      return;
-    }
-
     if (!elevenLabsApiKey || !ELEVENLABS_VOICE_ID) {
       notify("ElevenLabs configuration missing.", 'error');
       return;
@@ -1950,7 +1931,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const maxDials = Math.max(...agents.map(a => a.dials), 1);
   const maxTalk = Math.max(...agents.map(a => a.talkTime), 1);
 
-  const formattedDay = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Brisbane', weekday: 'long' }).format(currentTime);
   const formattedDate = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Brisbane', day: '2-digit', month: '2-digit', year: 'numeric' }).format(currentTime);
   const formattedTime = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Brisbane', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(currentTime);
   
@@ -2251,7 +2231,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
              <LogOutIcon size={16} />
           </button>
           <div>
-              <div className="footer-time">{formattedDay}, {formattedDate}, {formattedTime}</div>
+              <div className="footer-time">{formattedDate}, {formattedTime}</div>
           </div>
         </div>
       </div>
