@@ -18,7 +18,6 @@ const ELEVENLABS_VOICE_SETTINGS = {
 };
 const ELEVENLABS_SPEED = 0.87; // 0.87
 const BOOKINGS_CALENDAR_ID = 'meta.bookings@purgedigital.com.au';
-const STRIPE_BRIDGE_BASE_URL = (import.meta.env.VITE_STRIPE_BRIDGE_URL || '').replace(/\/$/, '');
 
 // -----------------------------------------------------------------------------
 // INLINE ICONS (Self-contained, no external dependencies)
@@ -150,80 +149,6 @@ const styles = `
   .toast.error { border-left-color: #ef4444; }
   .toast.success { border-left-color: #22c55e; }
 
-  .onboarding-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(6px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1.5rem;
-    animation: fadeIn 0.4s ease;
-  }
-
-  .onboarding-modal {
-    width: min(680px, 100%);
-    position: relative;
-    border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background: radial-gradient(circle at top, rgba(251, 146, 60, 0.28), rgba(17, 24, 39, 0.96));
-    color: #fff;
-    padding: 2.5rem;
-    text-align: center;
-    overflow: hidden;
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65), 0 0 45px rgba(249, 115, 22, 0.32);
-  }
-
-  .onboarding-title {
-    margin: 0;
-    font-size: 2.3rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .onboarding-subtitle {
-    margin: 0.75rem 0 0 0;
-    color: #fed7aa;
-    font-size: 1.05rem;
-  }
-
-  .onboarding-fireworks {
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-  }
-
-  .firework {
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    border-radius: 999px;
-    opacity: 0;
-    animation: firework-burst 1.4s ease-out infinite;
-  }
-
-  .confetti-particle {
-    position: absolute;
-    width: 10px;
-    height: 14px;
-    opacity: 0;
-    animation: confetti-fall 2.8s linear infinite;
-  }
-
-  @keyframes firework-burst {
-    0% { transform: scale(0.1); opacity: 0; }
-    25% { opacity: 1; }
-    100% { transform: scale(5.5); opacity: 0; }
-  }
-
-  @keyframes confetti-fall {
-    0% { transform: translateY(-100%) rotate(0deg); opacity: 0; }
-    15% { opacity: 1; }
-    100% { transform: translateY(720px) rotate(720deg); opacity: 0; }
-  }
-  
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(100%); }
     to { opacity: 1; transform: translateX(0); }
@@ -1091,76 +1016,6 @@ const toWebSocketUrl = (url) => {
   }
 };
 
-const normalizeStripeSuccessPayload = (payload) => {
-  if (!payload || typeof payload !== 'object') return null;
-
-  const asText = (value) => String(value || '').trim();
-  const lower = (value) => asText(value).toLowerCase();
-  const firstNonEmpty = (...values) => values.map(asText).find(Boolean) || '';
-
-  const candidates = [
-    payload,
-    payload.payload,
-    payload.data,
-    payload.event,
-    payload.body,
-    payload.data?.payload,
-    payload.data?.event,
-  ].filter((candidate) => candidate && typeof candidate === 'object');
-
-  const findMatch = (...keys) => {
-    for (const candidate of candidates) {
-      for (const key of keys) {
-        const value = candidate?.[key];
-        if (value !== undefined && value !== null && asText(value)) {
-          return value;
-        }
-      }
-    }
-    return '';
-  };
-
-  const type = firstNonEmpty(findMatch('type'));
-  const eventType = firstNonEmpty(findMatch('eventType', 'event_type', 'stripe_event_type'));
-  const isStripePaymentSuccess =
-    lower(type).includes('payment_succeeded') ||
-    lower(type).includes('stripe.payment_succeeded') ||
-    lower(eventType).includes('payment_intent.succeeded') ||
-    lower(eventType).includes('checkout.session.completed') ||
-    lower(eventType).includes('invoice.payment_succeeded') ||
-    lower(eventType).includes('charge.succeeded');
-
-  if (!isStripePaymentSuccess) return null;
-
-  const businessName = firstNonEmpty(
-    findMatch('businessName', 'business_name', 'company_name', 'company'),
-    payload?.data?.customer_details?.business_name,
-    payload?.data?.metadata?.business_name
-  );
-  const customerName = firstNonEmpty(
-    findMatch('customerName', 'customer_name', 'name'),
-    payload?.data?.customer_details?.name,
-    payload?.data?.customer?.name,
-    payload?.data?.customer_email
-  );
-
-  return {
-    type: 'payment_succeeded',
-    eventType: eventType || type || 'stripe.payment_succeeded',
-    eventId: firstNonEmpty(findMatch('eventId', 'event_id', 'id'), `local_${Date.now()}`),
-    mode: firstNonEmpty(findMatch('mode', 'livemode'), 'test'),
-    source: firstNonEmpty(findMatch('source'), 'stripe'),
-    businessName,
-    customerName,
-    email: firstNonEmpty(findMatch('email', 'customer_email'), payload?.data?.customer_details?.email),
-    displayName: firstNonEmpty(businessName, customerName, 'New client'),
-    timestamp: Number(findMatch('timestamp') || Date.now()),
-    amount: Number(findMatch('amount', 'amount_total', 'amount_received') || 0),
-    currency: firstNonEmpty(findMatch('currency'), 'usd'),
-    created: Number(findMatch('created') || Math.floor(Date.now() / 1000)),
-  };
-};
-
 const extractStatusFromWebhookEvent = (payload) => {
   if (!payload || typeof payload !== 'object') return null;
 
@@ -1270,60 +1125,13 @@ const ToastNotification = ({ toasts, removeToast }) => (
   </div>
 );
 
-const ONBOARDING_FIREWORKS = [
-  { top: '16%', left: '18%', delay: '0s', color: '#fbbf24' },
-  { top: '28%', left: '78%', delay: '0.35s', color: '#a78bfa' },
-  { top: '62%', left: '20%', delay: '0.75s', color: '#34d399' },
-  { top: '68%', left: '78%', delay: '1.05s', color: '#f472b6' },
-];
-
-const ONBOARDING_CONFETTI = Array.from({ length: 28 }, (_, idx) => ({
-  left: `${Math.random() * 100}%`,
-  delay: `${(idx % 8) * 0.22}s`,
-  background: ['#f97316', '#facc15', '#22c55e', '#38bdf8', '#a78bfa'][idx % 5],
-}));
-
-const NewClientOnboardingModal = ({ event, onClose }) => {
-  if (!event) return null;
-
-  return (
-    <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="New client onboarding celebration">
-      <div className="onboarding-modal">
-        <div className="onboarding-fireworks">
-          {ONBOARDING_FIREWORKS.map((item, idx) => (
-            <span
-              key={`firework-${idx}`}
-              className="firework"
-              style={{ top: item.top, left: item.left, animationDelay: item.delay, backgroundColor: item.color }}
-            />
-          ))}
-          {ONBOARDING_CONFETTI.map((item, idx) => (
-            <span
-              key={`confetti-${idx}`}
-              className="confetti-particle"
-              style={{ left: item.left, animationDelay: item.delay, backgroundColor: item.background }}
-            />
-          ))}
-        </div>
-        <h2 className="onboarding-title">🎉 New Client Onboarding 🎉</h2>
-        <p className="onboarding-subtitle">Payment succeeded for <strong>{event.businessName || event.displayName || 'a new client business'}</strong>.</p>
-        <p className="onboarding-subtitle">Contact: <strong>{event.customerName || 'Unknown contact'}</strong></p>
-        <p className="onboarding-subtitle" style={{ opacity: 0.85 }}>Stripe event: {event.eventType} ({event.mode || 'test'})</p>
-        <button type="button" className="btn-primary" onClick={onClose} style={{ marginTop: '2rem' }}>
-          Awesome — Keep Going
-        </button>
-      </div>
-    </div>
-  );
-};
-
 // SCREEN 1: UNIFIED LOGIN SCREEN
 const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState(null);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const tokenClient = useRef(null);
-  const credentialsRef = useRef({ token: '', key: '', elKey: '', stripeKey: '' }); // Store parsed creds here
+  const credentialsRef = useRef({ token: '', key: '', elKey: '' }); // Store parsed creds here
 
   // Load Google Scripts on Mount
   useEffect(() => {
@@ -1352,8 +1160,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
             credentialsRef.current.token, 
             credentialsRef.current.key, 
             resp.access_token,
-            credentialsRef.current.elKey,
-            credentialsRef.current.stripeKey
+            credentialsRef.current.elKey
           );
         },
       });
@@ -1369,9 +1176,9 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
 
     const lines = inputText.trim().split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-    // Validate we have at least 4 lines (Token + Google Key + ElevenLabs Key + Stripe Secret Key)
-    if (lines.length < 4) {
-      const msg = "Please paste credentials:\nLine 1: Aircall API Token\nLine 2: Google API Key\nLine 3: ElevenLabs API Key\nLine 4: Stripe Secret API Key";
+    // Validate we have at least 3 lines (Token + Google Key + ElevenLabs Key)
+    if (lines.length < 3) {
+      const msg = "Please paste credentials:\nLine 1: Aircall API Token\nLine 2: Google API Key\nLine 3: ElevenLabs API Key";
       setError(msg);
       notify("Missing Credentials. Check input.", 'error');
       return;
@@ -1385,7 +1192,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
     }
 
     // Store for callback
-    credentialsRef.current = { token: lines[0], key: lines[1], elKey: lines[2], stripeKey: lines[3] };
+    credentialsRef.current = { token: lines[0], key: lines[1], elKey: lines[2] };
 
     // Trigger Google Auth Popup
     try {
@@ -1422,7 +1229,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
               value={inputText} 
               onChange={(e) => setInputText(e.target.value)} 
               className="input-field" 
-              placeholder={`Aircall API Token\nGoogle API Key\nElevenLabs API Key\nStripe Secret API Key`}
+              placeholder={`Aircall API Token\nGoogle API Key\nElevenLabs API Key`}
               style={{ height: '8rem', resize: 'none', fontFamily: 'monospace', lineHeight: '1.5' }}
             />
           </div>
@@ -1545,7 +1352,7 @@ const LoadingScreen = ({ status, error, onRetry, onCancel }) => (
 );
 
 // SCREEN 3: DASHBOARD (Data Loading -> Display)
-const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, stripeSecretKey, onLogout, notify, toggleTheme, theme }) => {
+const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchStatus, setFetchStatus] = useState('Initializing...');
@@ -1568,164 +1375,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
   const latestAppliedSyncId = useRef(0);
   const latestCallTimestampSeen = useRef(0);
   const websocketRef = useRef(null);
-  const [latestStripeSuccess, setLatestStripeSuccess] = useState(null);
-  const seenStripeEventIds = useRef(new Set());
-
-  const handleStripePopup = (payload) => {
-    if (payload?.source === 'stripe') {
-      console.log('[StripeDebug] popup opened from Stripe flow', {
-        eventId: payload?.eventId,
-        eventType: payload?.eventType,
-        customerName: payload?.customerName,
-        businessName: payload?.businessName,
-      });
-    }
-
-    if (payload?.eventId && seenStripeEventIds.current.has(payload.eventId)) {
-      return;
-    }
-    if (payload?.eventId) {
-      seenStripeEventIds.current.add(payload.eventId);
-      if (seenStripeEventIds.current.size > 250) {
-        const first = seenStripeEventIds.current.values().next().value;
-        seenStripeEventIds.current.delete(first);
-      }
-    }
-
-    const displayName = payload?.businessName || payload?.displayName || 'new client business';
-    const contactName = payload?.customerName || 'Unknown contact';
-    setLatestStripeSuccess({ ...payload, displayName, businessName: payload?.businessName || displayName, customerName: contactName });
-    notify(`Stripe payment succeeded for ${displayName} (${contactName}).`, 'success');
-  };
-
-  const handleSimulateStripeSuccess = () => {
-    const simulationPayload = {
-      type: 'payment_succeeded',
-      eventType: 'simulated.local.preview',
-      mode: 'test',
-      source: 'simulation',
-      businessName: 'Simulation Business',
-      customerName: 'Simulation Customer',
-      displayName: 'Simulation Business',
-      created: Math.floor(Date.now() / 1000),
-      eventId: `sim_ui_${Date.now()}`,
-    };
-    handleStripePopup(simulationPayload);
-
-    fetch(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/simulate-success`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerName: 'Simulation Customer', businessName: 'Simulation Business' }),
-    }).catch(() => {});
-  };
-
-  const handleTestBackendSuccessEvent = async () => {
-    try {
-      const response = await fetch(`${STRIPE_BRIDGE_BASE_URL}/api/dev/emit-stripe-success`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName: 'Test Person',
-          businessName: 'Test Business',
-          email: 'test@example.com',
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.message || 'Backend dev emit endpoint failed.');
-      }
-
-      notify('Backend success event emitted. Waiting for SSE/poll popup.', 'success');
-    } catch (error) {
-      notify(`Backend success event test failed: ${error.message || 'Unknown error'}`, 'error');
-    }
-  };
-
-  useEffect(() => {
-    let isCancelled = false;
-    let stream = null;
-
-    const connectStripeBridge = async () => {
-      try {
-        if (stripeSecretKey) {
-          const configResponse = await fetch(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/config`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ secretKey: stripeSecretKey }),
-          });
-
-          const configPayload = await configResponse.json();
-          if (!configResponse.ok) {
-            throw new Error(configPayload?.message || 'Failed to configure Stripe bridge.');
-          }
-        }
-
-        if (isCancelled) return;
-
-        stream = new EventSource(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/events`);
-        stream.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data);
-            const stripePayload = normalizeStripeSuccessPayload(payload);
-            if (stripePayload) {
-              handleStripePopup(stripePayload);
-            }
-          } catch (err) {
-            console.warn('Failed to parse Stripe event stream payload.', err);
-          }
-        };
-
-        stream.onerror = () => {
-          console.warn('Stripe event stream disconnected.');
-        };
-      } catch (err) {
-        console.warn('Failed to initialize Stripe bridge.', err);
-      }
-    };
-
-    connectStripeBridge();
-
-    return () => {
-      isCancelled = true;
-      if (stream) stream.close();
-    };
-  }, [stripeSecretKey]);
-
-  useEffect(() => {
-    let isCancelled = false;
-    let timerId = null;
-
-    const pollLatestStripeSuccess = async () => {
-      try {
-        const response = await fetch(`${STRIPE_BRIDGE_BASE_URL}/api/latest-success`);
-        if (!response.ok) return;
-        const data = await response.json();
-        if (isCancelled) return;
-
-        const stripePayload = normalizeStripeSuccessPayload(data?.event);
-        if (stripePayload) {
-          console.log('[StripeDebug] frontend fetched success event', {
-            eventId: stripePayload.eventId,
-            eventType: stripePayload.eventType,
-            customerName: stripePayload.customerName,
-            businessName: stripePayload.businessName,
-          });
-          handleStripePopup({ ...stripePayload, source: data?.event?.source || 'stripe' });
-        }
-      } catch {
-        // no-op: polling is best effort for localhost webhook integration
-      }
-    };
-
-    pollLatestStripeSuccess();
-    timerId = setInterval(pollLatestStripeSuccess, 3000);
-
-    return () => {
-      isCancelled = true;
-      if (timerId) clearInterval(timerId);
-    };
-  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -2239,12 +1888,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
           try {
             const payload = JSON.parse(event.data);
 
-            const stripePayload = normalizeStripeSuccessPayload(payload);
-            if (stripePayload) {
-              handleStripePopup(stripePayload);
-              return;
-            }
-
             const userIds = extractUserIdsFromWebhookEvent(payload);
             if (userIds.length === 0) return;
 
@@ -2521,20 +2164,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <h1 className="main-title">Sales Leaderboard</h1>
-                <button
-                  onClick={handleSimulateStripeSuccess}
-                  className="icon-action-button"
-                  title="Simulate Stripe Success"
-                >
-                  🎊
-                </button>
-                <button
-                  onClick={handleTestBackendSuccessEvent}
-                  className="icon-action-button"
-                  title="Test Backend Success Event"
-                >
-                  Test Backend Success Event
-                </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.1em' }}>
                 <span style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>COMBINED METRICS</span>
@@ -2618,7 +2247,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
           </div>
         </div>
       </div>
-      <NewClientOnboardingModal event={latestStripeSuccess} onClose={() => setLatestStripeSuccess(null)} />
     </div>
   );
 };
@@ -2645,12 +2273,12 @@ export default function App() {
   };
   
   // UPDATED: Accept elevenLabsApiKey
-  const handleConnect = (id, token, apiKey, googleToken, elevenLabsApiKey, stripeSecretKey) => { 
-    setCredentials({ id, token, apiKey, googleToken, elevenLabsApiKey, stripeSecretKey }); 
+  const handleConnect = (id, token, apiKey, googleToken, elevenLabsApiKey) => { 
+    setCredentials({ id, token, apiKey, googleToken, elevenLabsApiKey }); 
   };
   
   const handleDemo = () => {
-    setCredentials({ id: 'demo', token: 'demo', apiKey: 'demo', googleToken: null, elevenLabsApiKey: null, stripeSecretKey: null });
+    setCredentials({ id: 'demo', token: 'demo', apiKey: 'demo', googleToken: null, elevenLabsApiKey: null });
   }
   
   const handleLogout = () => { 
@@ -2674,7 +2302,6 @@ export default function App() {
              apiKey={credentials.apiKey}
              googleToken={credentials.googleToken}
              elevenLabsApiKey={credentials.elevenLabsApiKey}
-             stripeSecretKey={credentials.stripeSecretKey}
              onLogout={handleLogout}
              notify={notify}
              toggleTheme={toggleTheme}
