@@ -1569,6 +1569,15 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
   const seenStripeEventIds = useRef(new Set());
 
   const handleStripePopup = (payload) => {
+    if (payload?.source === 'stripe') {
+      console.log('[StripeDebug] popup opened from Stripe flow', {
+        eventId: payload?.eventId,
+        eventType: payload?.eventType,
+        customerName: payload?.customerName,
+        businessName: payload?.businessName,
+      });
+    }
+
     if (payload?.eventId && seenStripeEventIds.current.has(payload.eventId)) {
       return;
     }
@@ -1674,6 +1683,12 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
 
         const stripePayload = normalizeStripeSuccessPayload(data?.event);
         if (stripePayload) {
+          console.log('[StripeDebug] frontend fetched success event', {
+            eventId: stripePayload.eventId,
+            eventType: stripePayload.eventType,
+            customerName: stripePayload.customerName,
+            businessName: stripePayload.businessName,
+          });
           handleStripePopup({ ...stripePayload, source: data?.event?.source || 'stripe' });
         }
       } catch {

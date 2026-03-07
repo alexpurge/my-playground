@@ -92,6 +92,11 @@ const emitStripeSuccess = (payload) => {
   sseClients.forEach((client) => client.write(data));
 };
 
+const logStripeDebug = (step, details = {}) => {
+  const serialized = JSON.stringify(details);
+  console.log(`[StripeDebug] ${step} ${serialized}`);
+};
+
 const storeSuccessEvent = ({ customerName, businessName, email, source, eventId, eventType, mode }) => {
   const record = {
     id: eventId || `evt_${Date.now()}`,
@@ -108,6 +113,15 @@ const storeSuccessEvent = ({ customerName, businessName, email, source, eventId,
 
   successEvents.push(record);
   while (successEvents.length > 200) successEvents.shift();
+  if (record.source === 'stripe') {
+    logStripeDebug('success event stored', {
+      eventId: record.id,
+      eventType: record.eventType,
+      customerName: record.customerName,
+      businessName: record.businessName,
+      mode: record.mode,
+    });
+  }
   return record;
 };
 
@@ -617,6 +631,13 @@ const server = createServer(async (req, res) => {
         body: new URLSearchParams(payload).toString(),
       });
 
+      logStripeDebug('checkout session created', {
+        sessionId: session.id,
+        customerName,
+        businessName,
+        successUrl,
+      });
+
       return writeJson(res, 200, { ok: true, sessionId: session.id, url: session.url });
     } catch (error) {
       return writeJson(res, 400, { ok: false, message: error.message || 'Unable to create checkout session.' });
@@ -654,12 +675,19 @@ const server = createServer(async (req, res) => {
     try {
       const rawBody = await collectRawBody(req);
       const signature = req.headers['stripe-signature'];
+      logStripeDebug('webhook received', {
+        hasSignature: Boolean(signature),
+        bytes: rawBody.length,
+      });
       if (!signature) {
         return writeJson(res, 400, { ok: false, message: 'Missing Stripe-Signature header.' });
       }
 
       if (webhookSecret) {
         verifyStripeWebhook(rawBody, String(signature), webhookSecret);
+        logStripeDebug('webhook signature verified', { verified: true });
+      } else {
+        logStripeDebug('webhook signature verification skipped', { reason: 'STRIPE_WEBHOOK_SECRET not set' });
       }
 
       const event = JSON.parse(rawBody.toString('utf8'));
@@ -667,9 +695,29 @@ const server = createServer(async (req, res) => {
       const isSuccessEvent = isSuccessfulPaymentEvent(event);
       if (isSuccessEvent) {
         const payload = await toSuccessPayload(event);
+        logStripeDebug('checkout.session.completed handled', {
+          handled: event.type === 'checkout.session.completed',
+          eventType: event.type,
+        });
+        logStripeDebug('extracted customerName', {
+          eventId: event.id,
+          customerName: payload.customerName,
+        });
+        logStripeDebug('extracted businessName', {
+          eventId: event.id,
+          businessName: payload.businessName,
+        });
         if (payload.shouldEmit) {
-          storeSuccessEvent({ ...payload, source: 'stripe' });
-          emitStripeSuccess(payload);
+          const payloadWithSource = { ...payload, source: 'stripe' };
+          storeSuccessEvent(payloadWithSource);
+          emitStripeSuccess(payloadWithSource);
+        } else {
+          logStripeDebug('success event skipped', {
+            eventId: payload.eventId,
+            eventType: payload.eventType,
+            isNewCustomer: payload.isNewCustomer,
+            dedupeBlocked: true,
+          });
         }
       }
 
