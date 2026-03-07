@@ -18,7 +18,7 @@ const ELEVENLABS_VOICE_SETTINGS = {
 };
 const ELEVENLABS_SPEED = 0.87; // 0.87
 const BOOKINGS_CALENDAR_ID = 'meta.bookings@purgedigital.com.au';
-const STRIPE_BRIDGE_BASE_URL = (import.meta.env.VITE_STRIPE_BRIDGE_URL || 'http://localhost:8787').replace(/\/$/, '');
+const STRIPE_BRIDGE_BASE_URL = (import.meta.env.VITE_STRIPE_BRIDGE_URL || '').replace(/\/$/, '');
 
 // -----------------------------------------------------------------------------
 // INLINE ICONS (Self-contained, no external dependencies)
