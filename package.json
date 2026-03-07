@@ -11,14 +11,22 @@
     "server": "node server.js"
   },
   "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+<<<<<<< Updated upstream
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "react-confetti": "^6.4.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "stripe": "^17.7.0"
+=======
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "stripe": "^20.4.1"
+>>>>>>> Stashed changes
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
