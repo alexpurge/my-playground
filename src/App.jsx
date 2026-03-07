@@ -18,7 +18,7 @@ const ELEVENLABS_VOICE_SETTINGS = {
 };
 const ELEVENLABS_SPEED = 0.87; // 0.87
 const BOOKINGS_CALENDAR_ID = 'meta.bookings@purgedigital.com.au';
-const STRIPE_BRIDGE_BASE_URL = (import.meta.env.VITE_STRIPE_BRIDGE_URL || 'http://localhost:8787').replace(/\/$/, '');
+const STRIPE_BRIDGE_BASE_URL = (import.meta.env.VITE_STRIPE_BRIDGE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 // -----------------------------------------------------------------------------
 // INLINE ICONS (Self-contained, no external dependencies)
@@ -1542,7 +1542,7 @@ const LoadingScreen = ({ status, error, onRetry, onCancel }) => (
 );
 
 // SCREEN 3: DASHBOARD (Data Loading -> Display)
-const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, stripeSecretKey, onLogout, notify, toggleTheme, theme }) => {
+const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchStatus, setFetchStatus] = useState('Initializing...');
@@ -1574,76 +1574,41 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
     notify(`Stripe payment succeeded for ${displayName} (${contactName}).`, 'success');
   };
 
-  const handleSimulateStripeSuccess = () => {
-    fetch(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/simulate-success`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerName: 'Simulation Customer', businessName: 'Simulation Business' }),
-    }).catch(() => {
-      // fallback path for local UI testing if helper server is down
-      handleStripePopup({
-        type: 'payment_succeeded',
-        eventType: 'simulated.local.preview',
-        mode: 'test',
-        businessName: 'Simulation Business',
-        customerName: 'Simulation Customer',
-        displayName: 'Simulation Business',
-        created: Math.floor(Date.now() / 1000),
-      });
-    });
-  };
-
   useEffect(() => {
     if (apiId === 'demo') return undefined;
 
-    let isCancelled = false;
-    let stream = null;
+    let cancelled = false;
 
-    const connectStripeBridge = async () => {
+    const pollLatestSuccess = async () => {
       try {
-        if (stripeSecretKey) {
-          const configResponse = await fetch(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/config`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ secretKey: stripeSecretKey }),
-          });
+        const response = await fetch(`${STRIPE_BRIDGE_BASE_URL}/api/latest-success`);
+        if (!response.ok) return;
 
-          const configPayload = await configResponse.json();
-          if (!configResponse.ok) {
-            throw new Error(configPayload?.message || 'Failed to configure Stripe bridge.');
-          }
-        }
+        const payload = await response.json();
+        if (cancelled || !payload?.hasNew) return;
 
-        if (isCancelled) return;
-
-        stream = new EventSource(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/events`);
-        stream.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data);
-            const stripePayload = normalizeStripeSuccessPayload(payload);
-            if (stripePayload) {
-              handleStripePopup(stripePayload);
-            }
-          } catch (err) {
-            console.warn('Failed to parse Stripe event stream payload.', err);
-          }
-        };
-
-        stream.onerror = () => {
-          console.warn('Stripe event stream disconnected.');
-        };
+        handleStripePopup({
+          type: 'payment_succeeded',
+          eventType: 'checkout.session.completed',
+          mode: 'test',
+          businessName: payload.businessName,
+          customerName: payload.customerName,
+          displayName: payload.businessName || payload.customerName,
+          created: Math.floor((payload.timestamp || Date.now()) / 1000),
+        });
       } catch (err) {
-        console.warn('Failed to initialize Stripe bridge.', err);
+        console.warn('Stripe success polling failed.', err);
       }
     };
 
-    connectStripeBridge();
+    pollLatestSuccess();
+    const interval = setInterval(pollLatestSuccess, 3000);
 
     return () => {
-      isCancelled = true;
-      if (stream) stream.close();
+      cancelled = true;
+      clearInterval(interval);
     };
-  }, [apiId, stripeSecretKey]);
+  }, [apiId]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -2438,15 +2403,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
           <div className="dashboard-header">
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <h1 className="main-title">Sales Leaderboard</h1>
-                <button
-                  onClick={handleSimulateStripeSuccess}
-                  className="icon-action-button"
-                  title="Simulate Stripe Success"
-                >
-                  🎊
-                </button>
-              </div>
+                <h1 className="main-title">Sales Leaderboard</h1>              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.1em' }}>
                 <span style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>COMBINED METRICS</span>
                 <span style={{ color: '#737373' }}>INBOUND + OUTBOUND</span>
@@ -2585,7 +2542,6 @@ export default function App() {
              apiKey={credentials.apiKey}
              googleToken={credentials.googleToken}
              elevenLabsApiKey={credentials.elevenLabsApiKey}
-             stripeSecretKey={credentials.stripeSecretKey}
              onLogout={handleLogout}
              notify={notify}
              toggleTheme={toggleTheme}

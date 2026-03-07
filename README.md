@@ -1,12 +1,6 @@
 # Aircall Agent Status Dashboard
 
-This project contains a React dashboard (`src/App.jsx`) that pulls Aircall users and calls directly from the Aircall API.
-
-## Live update behavior
-
-- The dashboard performs an initial full sync for the day.
-- It then refreshes every 30 seconds (twice per minute) to keep dials, talk time, and agent availability current.
-- Agent status is sourced from active call state (live calls + call webhook events), with Aircall availability fields as fallback when no active call signal is present.
+This project contains a React dashboard (`src/App.jsx`) and a local Stripe helper server (`server.js`) used to trigger the existing **New Client Onboarding Success** popup from real Stripe test payments.
 
 ## Run the frontend
 
@@ -14,24 +8,53 @@ This project contains a React dashboard (`src/App.jsx`) that pulls Aircall users
 npm run dev
 ```
 
-## Optional helper server
-
-A helper server exists in `server.js` with health, Stripe webhook handling, event streaming, and simulation endpoints:
-
-- `GET /health`
-- `POST /api/stripe/config` (registers Stripe secret key from login)
-- `POST /api/stripe/webhook` (accepts Stripe events, emits success events)
-- `GET /api/stripe/events` (SSE stream consumed by dashboard)
-- `POST /api/stripe/simulate-success` (manual UI testing)
-- `POST /api/stripe/request` (generic Stripe API passthrough)
-
-
-The frontend listens to this helper via `EventSource` at `VITE_STRIPE_BRIDGE_URL` (default `http://localhost:8787`) and auto-registers the Stripe secret key from the login form so real Stripe webhook events trigger the onboarding modal.
-
-Run it with:
+## Run the local Stripe server
 
 ```bash
 npm run server
 ```
 
-If you want strict webhook verification, set `STRIPE_WEBHOOK_SECRET` to your Stripe webhook signing secret (`whsec_...`) before launching `npm run server`.
+Default backend URL is `http://localhost:3000`.
+
+## Environment variables
+
+Create a `.env` file in the repo root:
+
+```bash
+PORT=3000
+FRONTEND_URL=http://localhost:5173
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID=price_...
+```
+
+## Stripe localhost flow
+
+1. Start frontend + server.
+2. Start Stripe webhook forwarding:
+
+```bash
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+```
+
+3. Create a Checkout session from your app/client by calling:
+
+```bash
+POST /api/stripe/create-checkout-session
+{
+  "customerName": "Jane Smith",
+  "businessName": "Acme Pty Ltd",
+  "email": "jane@acme.com"
+}
+```
+
+4. Redirect to returned `url` and complete payment with test card `4242 4242 4242 4242`.
+5. Stripe sends `checkout.session.completed` to the webhook.
+6. Server stores the success event and frontend polling (`GET /api/latest-success`) triggers the existing onboarding popup with Stripe customer + business data.
+
+## Stripe endpoints
+
+- `POST /api/stripe/create-checkout-session`
+- `POST /api/stripe/webhook`
+- `GET /api/latest-success`
+- `GET /health`
