@@ -148,11 +148,7 @@ const styles = `
   }
   .toast.error { border-left-color: #ef4444; }
   .toast.success { border-left-color: #22c55e; }
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> parent of a898c37 (Add Stripe webhook bridge and onboarding celebration flow)
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(100%); }
     to { opacity: 1; transform: translateX(0); }
@@ -1164,11 +1160,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
             credentialsRef.current.token, 
             credentialsRef.current.key, 
             resp.access_token,
-<<<<<<< HEAD
-            credentialsRef.current.elKey
-=======
             credentialsRef.current.elKey // Passed 11Labs Key
->>>>>>> parent of a898c37 (Add Stripe webhook bridge and onboarding celebration flow)
           );
         },
       });
