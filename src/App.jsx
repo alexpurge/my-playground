@@ -1236,10 +1236,7 @@ const NewClientOnboardingModal = ({ event, onClose }) => {
           ))}
         </div>
         <h2 className="onboarding-title">🎉 New Client Onboarding 🎉</h2>
-        <p className="onboarding-subtitle">Payment succeeded for <strong>{event.displayName || event.businessName || event.customerName || 'a new client'}</strong>.</p>
-        <p className="onboarding-subtitle" style={{ opacity: 0.9 }}>
-          Customer contact: <strong>{event.customerName || event.displayName || 'Unknown customer'}</strong>
-        </p>
+        <p className="onboarding-subtitle">Payment succeeded for <strong>{event.businessName || event.displayName || 'a new client business'}</strong>.</p>
         <p className="onboarding-subtitle" style={{ opacity: 0.85 }}>Stripe event: {event.eventType} ({event.mode || 'test'})</p>
         <button type="button" className="btn-primary" onClick={onClose} style={{ marginTop: '2rem' }}>
           Awesome — Keep Going
@@ -1503,8 +1500,8 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
   const [latestStripeSuccess, setLatestStripeSuccess] = useState(null);
 
   const handleStripePopup = (payload) => {
-    const displayName = payload?.businessName || payload?.displayName || payload?.customerName || 'new customer';
-    setLatestStripeSuccess({ ...payload, displayName });
+    const displayName = payload?.businessName || payload?.displayName || 'new client business';
+    setLatestStripeSuccess({ ...payload, displayName, businessName: payload?.businessName || displayName });
     notify(`Stripe payment succeeded for ${displayName}.`, 'success');
   };
 
