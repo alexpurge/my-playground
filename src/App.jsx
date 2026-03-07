@@ -180,28 +180,64 @@ const styles = `
     pointer-events: none;
   }
 
-  .sale-popup-confetti-piece {
+  .sale-popup-humming-blobs {
     position: absolute;
-    top: -12%;
-    border-radius: 999px;
-    opacity: 0.9;
-    transform: translateY(0) rotate(0deg);
-    animation-name: popupConfettiFall;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    filter: saturate(1.1);
   }
 
-  @keyframes popupConfettiFall {
+  .sale-popup-humming-blob {
+    position: absolute;
+    border-radius: 999px;
+    opacity: 0.6;
+    transform: translate3d(0, 0, 0) scale(1);
+    animation-name: popupHummingBlob;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    will-change: transform, opacity;
+  }
+
+  .sale-popup-confetti-piece {
+    position: absolute;
+    border-radius: 999px;
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.2);
+    animation-name: popupConfettiFirework;
+    animation-timing-function: cubic-bezier(0.12, 0.56, 0.2, 1);
+    animation-iteration-count: infinite;
+    will-change: transform, opacity;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+  }
+
+  @keyframes popupConfettiFirework {
     0% {
-      transform: translateY(-10%) rotate(0deg);
       opacity: 0;
+      transform: translate3d(0, 0, 0) scale(0.2);
     }
-    12% {
-      opacity: 0.9;
+    16% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    82% {
+      opacity: 0.75;
     }
     100% {
-      transform: translateY(130vh) rotate(420deg);
+      transform: translate3d(var(--dx, 0), var(--dy, 0), 0) scale(0.55);
       opacity: 0;
+    }
+  }
+
+  @keyframes popupHummingBlob {
+    0%,
+    100% {
+      opacity: 0.38;
+      transform: translate3d(0, 0, 0) scale(0.95);
+    }
+    50% {
+      opacity: 0.8;
+      transform: translate3d(0, -6px, 0) scale(1.12);
     }
   }
 
@@ -2353,13 +2389,40 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
 
 const SaleClearedPopup = ({ saleData, onClose }) => {
-  const confettiPieces = Array.from({ length: 36 }, (_, index) => ({
+  const burstOrigins = [
+    { x: 18, y: 24 },
+    { x: 50, y: 15 },
+    { x: 82, y: 26 },
+    { x: 30, y: 58 },
+    { x: 70, y: 62 },
+  ];
+
+  const confettiPieces = burstOrigins.flatMap((origin, burstIndex) =>
+    Array.from({ length: 14 }, (_, pieceIndex) => {
+      const angle = (Math.PI * 2 * pieceIndex) / 14;
+      const distance = 36 + ((burstIndex + pieceIndex) % 5) * 18;
+      return {
+        id: `${burstIndex}-${pieceIndex}`,
+        left: `${origin.x}%`,
+        top: `${origin.y}%`,
+        size: 5 + ((pieceIndex + burstIndex) % 4),
+        dx: `${Math.cos(angle) * distance}px`,
+        dy: `${Math.sin(angle) * distance}px`,
+        delay: `${burstIndex * 0.45 + (pieceIndex % 4) * 0.06}s`,
+        duration: `${1.35 + (pieceIndex % 3) * 0.22}s`,
+        hue: (burstIndex * 52 + pieceIndex * 23) % 360,
+      };
+    })
+  );
+
+  const hummingBlobs = Array.from({ length: 8 }, (_, index) => ({
     id: index,
-    left: `${(index * 17) % 100}%`,
-    size: 6 + (index % 6),
-    delay: `${(index % 9) * 0.2}s`,
-    duration: `${2 + (index % 5) * 0.35}s`,
-    hue: (index * 29) % 360,
+    left: `${10 + (index * 12) % 80}%`,
+    top: `${18 + (index * 17) % 66}%`,
+    size: 18 + (index % 4) * 8,
+    delay: `${index * 0.14}s`,
+    duration: `${1.8 + (index % 3) * 0.4}s`,
+    hue: (18 + index * 21) % 360,
   }));
 
   if (!saleData) return null;
@@ -2374,11 +2437,32 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
               className="sale-popup-confetti-piece"
               style={{
                 left: piece.left,
+                top: piece.top,
                 width: `${piece.size}px`,
-                height: `${piece.size * 1.6}px`,
+                height: `${piece.size}px`,
                 backgroundColor: `hsl(${piece.hue} 95% 58%)`,
+                '--dx': piece.dx,
+                '--dy': piece.dy,
                 animationDelay: piece.delay,
                 animationDuration: piece.duration,
+              }}
+            />
+          ))}
+        </div>
+        <div className="sale-popup-humming-blobs">
+          {hummingBlobs.map((blob) => (
+            <span
+              key={blob.id}
+              className="sale-popup-humming-blob"
+              style={{
+                left: blob.left,
+                top: blob.top,
+                width: `${blob.size}px`,
+                height: `${blob.size}px`,
+                background: `radial-gradient(circle at 35% 35%, hsl(${blob.hue} 100% 88%) 0%, hsl(${blob.hue} 95% 58% / 0.82) 45%, hsl(${blob.hue} 95% 45% / 0.08) 100%)`,
+                boxShadow: `0 0 18px hsl(${blob.hue} 95% 58% / 0.55)`,
+                animationDelay: blob.delay,
+                animationDuration: blob.duration,
               }}
             />
           ))}
