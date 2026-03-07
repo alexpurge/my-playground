@@ -41,6 +41,8 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
     return;
   }
 
+  console.log(`\n\x1b[1;95m🔔 [STRIPE EVENT RECEIVED] -> ${event.type}\x1b[0m`);
+
   if (event.type === 'customer.created') {
     const customer = event.data.object;
     if (customer?.id) {
@@ -51,18 +53,26 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
     const customerId = session?.customer;
+    const isNewlyCreatedCustomer = customerId ? newlyCreatedCustomerIds.has(customerId) : false;
 
-    if (customerId && newlyCreatedCustomerIds.has(customerId)) {
-      const amountCents = Number(session?.amount_total || 0);
-      const customerName = session?.customer_details?.name || session?.metadata?.customer_name || 'Unknown Customer';
-      const businessName = session?.metadata?.business_name || customerName;
+    console.log(`checkout.session.completed customerId: ${customerId || 'none'}`);
+    console.log(`newlyCreatedCustomerIds has customerId: ${isNewlyCreatedCustomer}`);
 
-      io.emit('sale_cleared', {
-        customerName,
-        businessName,
-        paymentAmount: amountCents / 100,
-      });
+    const amountCents = Number(session?.amount_total || 0);
+    const customerName = session?.customer_details?.name || session?.metadata?.customer_name || 'Unknown Customer';
+    const businessName = session?.metadata?.business_name || customerName;
 
+    if (!isNewlyCreatedCustomer) {
+      console.log('⚠️ Strict rule bypassed for testing: Firing pop-up for existing/test customer');
+    }
+
+    io.emit('sale_cleared', {
+      customerName,
+      businessName,
+      paymentAmount: amountCents / 100,
+    });
+
+    if (customerId && isNewlyCreatedCustomer) {
       newlyCreatedCustomerIds.delete(customerId);
     }
   }
@@ -81,7 +91,7 @@ app.use((_req, res) => {
 });
 
 io.on('connection', (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
+  console.log(`✅ Frontend socket connected successfully: ${socket.id}`);
 
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
