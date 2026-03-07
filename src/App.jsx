@@ -2303,7 +2303,16 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           {/* LEADERBOARD HEADER */}
           <div className="dashboard-header">
             <div>
-              <h1 className="main-title">Sales Leaderboard</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <h1 className="main-title">Sales Leaderboard</h1>
+                <button
+                  onClick={handleSimulateStripeSuccess}
+                  className="icon-action-button"
+                  title="Simulate Stripe Success"
+                >
+                  🎊
+                </button>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.1em' }}>
                 <span style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>COMBINED METRICS</span>
                 <span style={{ color: '#737373' }}>INBOUND + OUTBOUND</span>
@@ -2319,13 +2328,6 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                   title="Global Refresh"
                  >
                     <RefreshCwIcon size={24} />
-                 </button>
-                 <button
-                  onClick={handleSimulateStripeSuccess}
-                  className="icon-action-button"
-                  title="Simulate Stripe Success"
-                 >
-                    🎊
                  </button>
                  <div className="legend-box">
                     <div className="legend-item"><div className="legend-label">Dials (1 pt)</div><div className="legend-value"><div className="dot" style={{ background: '#facc15' }}></div> Dials</div></div>
