@@ -1,41 +1,93 @@
-import http from 'node:http';
+import express from 'express';
+import cors from 'cors';
+import { createServer } from 'node:http';
+import Stripe from 'stripe';
+import { Server as SocketIOServer } from 'socket.io';
 
 const PORT = Number(globalThis.process?.env?.PORT || 8787);
+const STRIPE_WEBHOOK_SECRET = 'whsec_Ppiu009rD9FjqtejQ37jKgIAaFyK3SwP';
 
-const writeJson = (res, statusCode, payload) => {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  });
-  res.end(JSON.stringify(payload));
-};
+const app = express();
+const httpServer = createServer(app);
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+});
 
-const server = http.createServer((req, res) => {
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+const stripe = new Stripe(globalThis.process?.env?.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
+  apiVersion: '2024-06-20',
+});
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    });
-    res.end();
+const newlyCreatedCustomerIds = new Set();
+
+app.use(cors());
+
+app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const signature = req.headers['stripe-signature'];
+
+  if (!signature) {
+    res.status(400).send('Missing Stripe signature header');
     return;
   }
 
-  if (req.method === 'GET' && url.pathname === '/health') {
-    writeJson(res, 200, { ok: true, message: 'Server running.' });
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, signature, STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Stripe webhook signature verification failed:', err.message);
+    res.status(400).send(`Webhook Error: ${err.message}`);
     return;
   }
 
-  writeJson(res, 404, {
-    ok: false,
-    message: 'Not found.',
+  if (event.type === 'customer.created') {
+    const customer = event.data.object;
+    if (customer?.id) {
+      newlyCreatedCustomerIds.add(customer.id);
+    }
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const customerId = session?.customer;
+
+    if (customerId && newlyCreatedCustomerIds.has(customerId)) {
+      const amountCents = Number(session?.amount_total || 0);
+      const customerName = session?.customer_details?.name || session?.metadata?.customer_name || 'Unknown Customer';
+      const businessName = session?.metadata?.business_name || customerName;
+
+      io.emit('sale_cleared', {
+        customerName,
+        businessName,
+        paymentAmount: amountCents / 100,
+      });
+
+      newlyCreatedCustomerIds.delete(customerId);
+    }
+  }
+
+  res.status(200).json({ received: true });
+});
+
+app.use(express.json());
+
+app.get('/health', (_req, res) => {
+  res.status(200).json({ ok: true, message: 'Server running.' });
+});
+
+app.use((_req, res) => {
+  res.status(404).json({ ok: false, message: 'Not found.' });
+});
+
+io.on('connection', (socket) => {
+  console.log(`Socket connected: ${socket.id}`);
+
+  socket.on('disconnect', () => {
+    console.log(`Socket disconnected: ${socket.id}`);
   });
 });
 
-server.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
 });

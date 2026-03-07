@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Confetti from 'react-confetti';
+import { io } from 'socket.io-client';
 
 // -----------------------------------------------------------------------------
 // CONFIGURATION
@@ -148,6 +150,83 @@ const styles = `
   }
   .toast.error { border-left-color: #ef4444; }
   .toast.success { border-left-color: #22c55e; }
+
+  .sale-popup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .sale-popup-card {
+    position: relative;
+    width: min(560px, 92vw);
+    min-height: 340px;
+    border-radius: 1rem;
+    background: #111111;
+    border: 1px solid rgba(249, 115, 22, 0.35);
+    box-shadow: 0 0 30px rgba(249, 115, 22, 0.35);
+    overflow: hidden;
+  }
+
+  .sale-popup-confetti {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .sale-popup-content {
+    position: relative;
+    z-index: 2;
+    min-height: 340px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.8rem;
+  }
+
+  .sale-popup-heading {
+    margin: 0;
+    color: #f97316;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 1.4rem;
+  }
+
+  .sale-popup-text {
+    margin: 0;
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .sale-popup-button {
+    margin-top: 1rem;
+    width: 100%;
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+    background: #f97316;
+    color: #111111;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  .simulate-sale-button {
+    border: 1px solid rgba(249, 115, 22, 0.6);
+    background: rgba(249, 115, 22, 0.16);
+    color: #fb923c;
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
 
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(100%); }
@@ -1352,7 +1431,7 @@ const LoadingScreen = ({ status, error, onRetry, onCancel }) => (
 );
 
 // SCREEN 3: DASHBOARD (Data Loading -> Display)
-const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme }) => {
+const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme, onSimulateSale }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchStatus, setFetchStatus] = useState('Initializing...');
@@ -2158,6 +2237,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <h1 className="main-title">Sales Leaderboard</h1>
+                <button className="simulate-sale-button" onClick={onSimulateSale}>🎉 Simulate Sale</button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.1em' }}>
                 <span style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>COMBINED METRICS</span>
@@ -2245,14 +2325,92 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   );
 };
 
+
+const SaleClearedPopup = ({ saleData, onClose }) => {
+  const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  useEffect(() => {
+    const onResize = () => setDimensions({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  if (!saleData) return null;
+
+  return (
+    <div className="sale-popup-overlay">
+      <div className="sale-popup-card">
+        <div className="sale-popup-confetti">
+          <Confetti
+            width={dimensions.width}
+            height={dimensions.height}
+            recycle
+            gravity={0.18}
+            wind={0.015}
+            numberOfPieces={220}
+          />
+        </div>
+        <div className="sale-popup-content">
+          <h2 className="sale-popup-heading">🎉 NEW CLIENT ONBOARDING</h2>
+          <p className="sale-popup-text">Payment succeeded for {saleData.businessName}</p>
+          <p className="sale-popup-text">Contact: {saleData.customerName}</p>
+          <button className="sale-popup-button" onClick={onClose}>Awesome — Keep Going</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [credentials, setCredentials] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
+  const [salePopupData, setSalePopupData] = useState(null);
+  const salePopupTimeoutRef = useRef(null);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
+
+  const closeSalePopup = () => {
+    setSalePopupData(null);
+    if (salePopupTimeoutRef.current) {
+      clearTimeout(salePopupTimeoutRef.current);
+      salePopupTimeoutRef.current = null;
+    }
+  };
+
+  const triggerSalePopup = (payload) => {
+    setSalePopupData({
+      customerName: payload?.customerName || 'Test Customer',
+      businessName: payload?.businessName || payload?.customerName || 'Test Business',
+      paymentAmount: payload?.paymentAmount || 0,
+    });
+
+    if (salePopupTimeoutRef.current) {
+      clearTimeout(salePopupTimeoutRef.current);
+    }
+
+    salePopupTimeoutRef.current = setTimeout(() => {
+      setSalePopupData(null);
+      salePopupTimeoutRef.current = null;
+    }, 180000);
+  };
+
+  useEffect(() => {
+    const socket = io('http://localhost:8787');
+
+    socket.on('sale_cleared', (payload) => {
+      triggerSalePopup(payload);
+    });
+
+    return () => {
+      socket.disconnect();
+      if (salePopupTimeoutRef.current) {
+        clearTimeout(salePopupTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Toast Handler
   const notify = (message, type = 'error') => {
@@ -2286,6 +2444,7 @@ export default function App() {
       {/* Apply Data Theme Attribute to Wrapper */}
       <div data-theme={theme} style={{ width: '100%', height: '100%' }}>
         <ToastNotification toasts={toasts} removeToast={removeToast} />
+        {salePopupData && <SaleClearedPopup saleData={salePopupData} onClose={closeSalePopup} />}
 
         {!credentials ? (
           <UnifiedLoginScreen onConnect={handleConnect} onDemo={handleDemo} notify={notify} />
@@ -2300,6 +2459,7 @@ export default function App() {
              notify={notify}
              toggleTheme={toggleTheme}
              theme={theme}
+             onSimulateSale={() => triggerSalePopup({ customerName: 'Test Customer', businessName: 'Demo Business', paymentAmount: 497 })}
           />
         )}
       </div>
