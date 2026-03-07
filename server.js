@@ -109,15 +109,70 @@ const stripeFetch = async (path, options = {}) => {
   return json;
 };
 
+const cleanName = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+};
+
+const firstNonEmpty = (...values) => values.map(cleanName).find(Boolean) || '';
+
+const extractCustomFieldValue = (customFields, keyMatchers = []) => {
+  if (!Array.isArray(customFields)) return '';
+
+  const keySet = keyMatchers.map((item) => String(item || '').toLowerCase());
+  for (const field of customFields) {
+    const key = String(field?.key || '').toLowerCase();
+    if (!key) continue;
+    if (!keySet.some((candidate) => key.includes(candidate))) continue;
+
+    const value = firstNonEmpty(
+      field?.text?.value,
+      field?.dropdown?.value,
+      field?.numeric?.value ? String(field.numeric.value) : ''
+    );
+    if (value) return value;
+  }
+
+  return '';
+};
+
+const extractBusinessName = (object) => {
+  const metadata = object?.metadata || {};
+  return firstNonEmpty(
+    object?.customer_details?.business_name,
+    object?.customer_details?.company,
+    metadata.business_name,
+    metadata.company_name,
+    metadata.company,
+    extractCustomFieldValue(object?.custom_fields, ['business', 'company'])
+  );
+};
+
+const extractCustomerName = (object) => {
+  const metadata = object?.metadata || {};
+  return firstNonEmpty(
+    object?.customer_details?.name,
+    object?.billing_details?.name,
+    metadata.customer_name,
+    object?.customer_email,
+    object?.receipt_email
+  );
+};
+
 const toSuccessPayload = (event) => {
   const object = event?.data?.object || {};
-  const customerName = object.customer_details?.name || object.billing_details?.name || object.customer_email || object.receipt_email || 'New customer';
+  const businessName = extractBusinessName(object);
+  const customerName = extractCustomerName(object);
+  const displayName = businessName || customerName || 'New customer';
 
   return {
     type: 'payment_succeeded',
     eventType: event.type,
     eventId: event.id,
+    mode: event?.livemode ? 'live' : 'test',
+    businessName,
     customerName,
+    displayName,
     amount: Number(object.amount_received || object.amount_total || object.amount || 0),
     currency: object.currency || 'usd',
     created: event.created || Math.floor(Date.now() / 1000),
@@ -186,7 +241,10 @@ const server = createServer(async (req, res) => {
         type: 'payment_succeeded',
         eventType: 'checkout.session.completed',
         eventId: `sim_${Date.now()}`,
+        mode: 'test',
+        businessName: body.businessName || '',
         customerName: body.customerName || 'Simulation Customer',
+        displayName: body.businessName || body.customerName || 'Simulation Customer',
         amount: 10000,
         currency: 'usd',
         created: Math.floor(Date.now() / 1000),
@@ -239,7 +297,10 @@ const server = createServer(async (req, res) => {
 
       const event = JSON.parse(rawBody.toString('utf8'));
 
-      const isSuccessEvent = event?.type === 'payment_intent.succeeded' || event?.type === 'checkout.session.completed';
+      const isSuccessEvent =
+        event?.type === 'payment_intent.succeeded' ||
+        event?.type === 'checkout.session.completed' ||
+        event?.type === 'checkout.session.async_payment_succeeded';
       if (isSuccessEvent) {
         const payload = toSuccessPayload(event);
         emitStripeSuccess(payload);
