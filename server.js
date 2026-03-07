@@ -4,8 +4,9 @@ import { URL } from 'node:url';
 
 const port = Number(globalThis.process?.env?.PORT || 8787);
 
-let stripeSecretKey = '';
+let stripeSecretKey = String(globalThis.process?.env?.STRIPE_SECRET_KEY || '').trim();
 const sseClients = new Set();
+const successEvents = [];
 
 const writeJson = (res, status, payload) => {
   res.writeHead(status, {
@@ -89,6 +90,49 @@ const verifyStripeWebhook = (rawBody, signatureHeader, webhookSecret, toleranceS
 const emitStripeSuccess = (payload) => {
   const data = `data: ${JSON.stringify(payload)}\n\n`;
   sseClients.forEach((client) => client.write(data));
+};
+
+const storeSuccessEvent = ({ customerName, businessName, email, source, eventId, eventType, mode }) => {
+  const record = {
+    id: eventId || `evt_${Date.now()}`,
+    customerName: firstNonEmpty(customerName),
+    businessName: firstNonEmpty(businessName),
+    email: firstNonEmpty(email),
+    timestamp: Date.now(),
+    shown: false,
+    consumedAt: null,
+    source: firstNonEmpty(source) || 'stripe',
+    eventType: firstNonEmpty(eventType),
+    mode: firstNonEmpty(mode) || 'test',
+  };
+
+  successEvents.push(record);
+  while (successEvents.length > 200) successEvents.shift();
+  return record;
+};
+
+const consumeLatestSuccessEvent = (source = 'stripe') => {
+  for (let i = successEvents.length - 1; i >= 0; i -= 1) {
+    const candidate = successEvents[i];
+    if (!candidate || candidate.shown) continue;
+    if (source && candidate.source !== source) continue;
+    candidate.shown = true;
+    candidate.consumedAt = Date.now();
+    return {
+      customerName: candidate.customerName,
+      businessName: candidate.businessName,
+      email: candidate.email,
+      source: candidate.source,
+      timestamp: candidate.timestamp,
+      eventId: candidate.id,
+      eventType: candidate.eventType,
+      mode: candidate.mode,
+      displayName: candidate.businessName || candidate.customerName || 'New client',
+      type: 'payment_succeeded',
+    };
+  }
+
+  return null;
 };
 
 const stripeFetch = async (path, options = {}) => {
@@ -313,6 +357,21 @@ const extractCustomerName = (object, related = {}) => {
   );
 };
 
+const extractCustomerEmail = (object, related = {}) => {
+  const metadata = object?.metadata || {};
+  const customerMetadata = related?.customer?.metadata || {};
+
+  return firstNonEmpty(
+    object?.customer_details?.email,
+    object?.customer_email,
+    object?.receipt_email,
+    related?.invoice?.customer_email,
+    related?.customer?.email,
+    metadata.customer_email,
+    customerMetadata.customer_email
+  );
+};
+
 const fetchExpandedObject = async (event) => {
   const fallback = { object: event?.data?.object || {}, related: {} };
   if (!stripeSecretKey) return fallback;
@@ -414,6 +473,7 @@ const toSuccessPayload = async (event) => {
   const { object, related } = await fetchExpandedObject(event);
   const businessName = extractBusinessName(object, related);
   const customerName = extractCustomerName(object, related);
+  const email = extractCustomerEmail(object, related);
   const isNewCustomer = await isNewCustomerPayment(event, object, related);
   const dedupeKey = buildPaymentDedupeKey(event, object, related);
   const shouldEmit = isNewCustomer && !wasRecentlyEmitted(dedupeKey);
@@ -426,6 +486,7 @@ const toSuccessPayload = async (event) => {
     mode: event?.livemode ? 'live' : 'test',
     businessName,
     customerName,
+    email,
     displayName,
     isNewCustomer,
     shouldEmit,
@@ -453,7 +514,13 @@ const server = createServer(async (req, res) => {
       message: 'Server running with Stripe webhook + event bridge.',
       stripeConfigured: Boolean(stripeSecretKey),
       sseClients: sseClients.size,
+      pendingSuccessEvents: successEvents.filter((item) => !item.shown).length,
     });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/latest-success') {
+    const latest = consumeLatestSuccessEvent('stripe');
+    return writeJson(res, 200, { ok: true, event: latest });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/stripe/config') {
@@ -495,20 +562,64 @@ const server = createServer(async (req, res) => {
       const body = await parseJsonBody(req);
       const payload = {
         type: 'payment_succeeded',
-        eventType: 'checkout.session.completed',
+        eventType: 'simulated.local.preview',
         eventId: `sim_${Date.now()}`,
         mode: 'test',
         businessName: body.businessName || '',
         customerName: body.customerName || 'Simulation Customer',
+        email: body.email || 'simulation@example.com',
         displayName: body.businessName || body.customerName || 'Simulation Customer',
         amount: 10000,
         currency: 'usd',
         created: Math.floor(Date.now() / 1000),
+        source: 'simulation',
       };
+      storeSuccessEvent(payload);
       emitStripeSuccess(payload);
       return writeJson(res, 200, { ok: true, payload });
     } catch (error) {
       return writeJson(res, 400, { ok: false, message: error.message || 'Simulation failed.' });
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/stripe/create-checkout-session') {
+    try {
+      const body = await parseJsonBody(req);
+      const successUrl = String(body?.successUrl || 'http://localhost:5173').trim();
+      const cancelUrl = String(body?.cancelUrl || successUrl).trim();
+      const customerName = firstNonEmpty(body?.customerName);
+      const email = firstNonEmpty(body?.email);
+      const businessName = firstNonEmpty(body?.businessName);
+      const amount = Number(body?.amount || 1000);
+      const amountInCents = Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 1000;
+
+      const payload = {
+        mode: 'payment',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        'payment_method_types[]': 'card',
+        'line_items[0][price_data][currency]': String(body?.currency || 'usd').toLowerCase(),
+        'line_items[0][price_data][unit_amount]': String(amountInCents),
+        'line_items[0][price_data][product_data][name]': String(body?.productName || 'New Client Onboarding'),
+        'line_items[0][quantity]': '1',
+        'metadata[business_name]': businessName,
+        'metadata[customer_name]': customerName,
+        'metadata[source]': 'checkout_localhost',
+        'metadata[trigger_onboarding]': 'true',
+        'billing_address_collection': 'auto',
+      };
+
+      if (email) payload.customer_email = email;
+
+      const session = await stripeFetch('checkout/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(payload).toString(),
+      });
+
+      return writeJson(res, 200, { ok: true, sessionId: session.id, url: session.url });
+    } catch (error) {
+      return writeJson(res, 400, { ok: false, message: error.message || 'Unable to create checkout session.' });
     }
   }
 
@@ -557,6 +668,7 @@ const server = createServer(async (req, res) => {
       if (isSuccessEvent) {
         const payload = await toSuccessPayload(event);
         if (payload.shouldEmit) {
+          storeSuccessEvent({ ...payload, source: 'stripe' });
           emitStripeSuccess(payload);
         }
       }

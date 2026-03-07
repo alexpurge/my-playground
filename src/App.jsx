@@ -1566,8 +1566,20 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
   const latestCallTimestampSeen = useRef(0);
   const websocketRef = useRef(null);
   const [latestStripeSuccess, setLatestStripeSuccess] = useState(null);
+  const seenStripeEventIds = useRef(new Set());
 
   const handleStripePopup = (payload) => {
+    if (payload?.eventId && seenStripeEventIds.current.has(payload.eventId)) {
+      return;
+    }
+    if (payload?.eventId) {
+      seenStripeEventIds.current.add(payload.eventId);
+      if (seenStripeEventIds.current.size > 250) {
+        const first = seenStripeEventIds.current.values().next().value;
+        seenStripeEventIds.current.delete(first);
+      }
+    }
+
     const displayName = payload?.businessName || payload?.displayName || 'new client business';
     const contactName = payload?.customerName || 'Unknown contact';
     setLatestStripeSuccess({ ...payload, displayName, businessName: payload?.businessName || displayName, customerName: contactName });
@@ -1575,22 +1587,24 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
   };
 
   const handleSimulateStripeSuccess = () => {
+    const simulationPayload = {
+      type: 'payment_succeeded',
+      eventType: 'simulated.local.preview',
+      mode: 'test',
+      source: 'simulation',
+      businessName: 'Simulation Business',
+      customerName: 'Simulation Customer',
+      displayName: 'Simulation Business',
+      created: Math.floor(Date.now() / 1000),
+      eventId: `sim_ui_${Date.now()}`,
+    };
+    handleStripePopup(simulationPayload);
+
     fetch(`${STRIPE_BRIDGE_BASE_URL}/api/stripe/simulate-success`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ customerName: 'Simulation Customer', businessName: 'Simulation Business' }),
-    }).catch(() => {
-      // fallback path for local UI testing if helper server is down
-      handleStripePopup({
-        type: 'payment_succeeded',
-        eventType: 'simulated.local.preview',
-        mode: 'test',
-        businessName: 'Simulation Business',
-        customerName: 'Simulation Customer',
-        displayName: 'Simulation Business',
-        created: Math.floor(Date.now() / 1000),
-      });
-    });
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -1644,6 +1658,37 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, str
       if (stream) stream.close();
     };
   }, [apiId, stripeSecretKey]);
+
+  useEffect(() => {
+    if (apiId === 'demo') return undefined;
+
+    let isCancelled = false;
+    let timerId = null;
+
+    const pollLatestStripeSuccess = async () => {
+      try {
+        const response = await fetch(`${STRIPE_BRIDGE_BASE_URL}/api/latest-success`);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (isCancelled) return;
+
+        const stripePayload = normalizeStripeSuccessPayload(data?.event);
+        if (stripePayload) {
+          handleStripePopup({ ...stripePayload, source: data?.event?.source || 'stripe' });
+        }
+      } catch {
+        // no-op: polling is best effort for localhost webhook integration
+      }
+    };
+
+    pollLatestStripeSuccess();
+    timerId = setInterval(pollLatestStripeSuccess, 3000);
+
+    return () => {
+      isCancelled = true;
+      if (timerId) clearInterval(timerId);
+    };
+  }, [apiId]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
