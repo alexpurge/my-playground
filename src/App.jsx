@@ -182,6 +182,8 @@ const styles = `
 
   .sale-popup-card {
     position: relative;
+    font-family: var(--font-sans);
+    font-weight: 900;
     width: 100%;
     max-width: 1280px;
     background: #1a1b1f;
@@ -256,7 +258,7 @@ const styles = `
     margin: 0 0 4rem;
     font-size: 4rem;
     white-space: nowrap;
-    font-weight: 700;
+    font-weight: 900;
     color: #ffffff;
     letter-spacing: 0.05em;
     display: flex;
@@ -302,7 +304,7 @@ const styles = `
 
   .sale-popup-text strong {
     color: #e1e1e8;
-    font-weight: 700;
+    font-weight: 900;
   }
 
   .sale-popup-close {
@@ -333,7 +335,7 @@ const styles = `
     padding: 1.5rem 1.5rem;
     border-radius: 0.375rem;
     border: none;
-    font-weight: 700;
+    font-weight: 900;
     color: #ffffff;
     font-size: 1.125rem;
     letter-spacing: 0.025em;
