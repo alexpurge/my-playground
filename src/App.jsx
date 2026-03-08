@@ -172,8 +172,8 @@ const styles = `
   .sale-popup-ambient {
     position: absolute;
     width: 80%;
-    max-width: 800px;
-    height: 400px;
+    max-width: 1600px;
+    height: 800px;
     background: linear-gradient(to right, rgba(234, 88, 12, 0.2), rgba(245, 158, 11, 0.1), rgba(154, 52, 18, 0.2));
     filter: blur(100px);
     border-radius: 9999px;
@@ -183,11 +183,11 @@ const styles = `
   .sale-popup-card {
     position: relative;
     width: 100%;
-    max-width: 640px;
+    max-width: 1280px;
     background: #1a1b1f;
     border: 1px solid #2d2e35;
     border-radius: 0.75rem;
-    padding: 2rem;
+    padding: 4rem;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     z-index: 10;
     overflow: hidden;
@@ -198,8 +198,8 @@ const styles = `
     top: -100px;
     left: 50%;
     transform: translateX(-50%);
-    width: 400px;
-    height: 300px;
+    width: 800px;
+    height: 600px;
     background: rgba(249, 115, 22, 0.15);
     filter: blur(60px);
     border-radius: 9999px;
@@ -243,8 +243,8 @@ const styles = `
   }
 
   .sale-popup-heading {
-    margin: 0 0 2rem;
-    font-size: 2rem;
+    margin: 0 0 4rem;
+    font-size: 4rem;
     white-space: nowrap;
     font-weight: 700;
     color: #ffffff;
@@ -256,15 +256,15 @@ const styles = `
   }
 
   .sale-popup-heading-icon {
-    font-size: 1.875rem;
+    font-size: 3.75rem;
   }
 
   .sale-popup-details {
     display: grid;
-    gap: 1rem;
+    gap: 2rem;
     text-align: center;
-    font-size: 15px;
-    margin-bottom: 2.5rem;
+    font-size: 30px;
+    margin-bottom: 5rem;
     width: 100%;
   }
 
@@ -278,21 +278,37 @@ const styles = `
     font-weight: 700;
   }
 
-  .sale-popup-subtext {
-    margin: 0;
-    color: #8c8c9a;
+  .sale-popup-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #c5c5d1;
     font-size: 0.875rem;
-    padding-top: 0.5rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+  }
+
+  .sale-popup-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
   }
 
   .sale-popup-button {
     width: 100%;
-    padding: 1rem 1.5rem;
+    padding: 2rem 3rem;
     border-radius: 0.375rem;
     border: none;
     font-weight: 700;
     color: #ffffff;
-    font-size: 1.125rem;
+    font-size: 2.25rem;
     letter-spacing: 0.025em;
     background: #ea580c;
     transition: all 300ms ease-in-out;
@@ -327,12 +343,28 @@ const styles = `
   @media (max-width: 640px) {
     .sale-popup-card {
       padding: 2rem 1.5rem;
+      max-width: 100%;
     }
 
     .sale-popup-heading {
       font-size: 1.5rem;
       white-space: normal;
       text-align: center;
+    }
+
+    .sale-popup-heading-icon {
+      font-size: 1.875rem;
+    }
+
+    .sale-popup-details {
+      gap: 1rem;
+      font-size: 15px;
+      margin-bottom: 2.5rem;
+    }
+
+    .sale-popup-button {
+      padding: 1rem 1.5rem;
+      font-size: 1.125rem;
     }
   }
 
@@ -2576,9 +2608,10 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
   if (!saleData) return null;
 
   return (
-    <div className="sale-popup-overlay">
+    <div className="sale-popup-overlay" onClick={onClose}>
       <div className="sale-popup-ambient" />
-      <div className="sale-popup-card">
+      <div className="sale-popup-card" onClick={(event) => event.stopPropagation()}>
+        <button className="sale-popup-close" onClick={onClose} aria-label="Close pop-up">✕</button>
         <div className="sale-popup-card-glow" />
         <div className="sale-popup-pulse one" />
         <div className="sale-popup-pulse two" />
@@ -2598,8 +2631,6 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
             <p className="sale-popup-text">
               Contact: <strong>{saleData.customerName}</strong>
             </p>
-
-            <p className="sale-popup-subtext">Stripe event: simulated.local.preview (test)</p>
           </div>
 
           <button
