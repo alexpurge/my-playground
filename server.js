@@ -5,8 +5,6 @@ import Stripe from 'stripe';
 import { Server as SocketIOServer } from 'socket.io';
 
 const PORT = Number(globalThis.process?.env?.PORT || 8787);
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ? process.env.STRIPE_WEBHOOK_SECRET.trim() : 'whsec_Ppiu009rD9FjqtejQ37jKgIAaFyK3SwP';
-
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
@@ -16,9 +14,7 @@ const io = new SocketIOServer(httpServer, {
   },
 });
 
-const stripe = new Stripe(globalThis.process?.env?.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2024-06-20',
-});
+let stripe = null;
 
 const newlyCreatedCustomerIds = new Set();
 
@@ -82,6 +78,16 @@ app.use((_req, res) => {
 
 io.on('connection', (socket) => {
   console.log(`✅ Frontend socket connected successfully: ${socket.id}`);
+
+  socket.on('set_stripe_key', (stripeKey) => {
+    if (!stripeKey || typeof stripeKey !== 'string') {
+      return;
+    }
+
+    stripe = new Stripe(stripeKey.trim(), {
+      apiVersion: '2024-06-20',
+    });
+  });
 
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
