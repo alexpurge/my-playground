@@ -1440,10 +1440,11 @@ const resolveAgentStatus = (agent, statusMap) => {
 const useFlipListAnimation = (items) => {
   const containerRef = useRef(null);
   const previousRectsRef = useRef(new Map());
+  const canAnimateRef = useRef(typeof Element !== 'undefined' && typeof Element.prototype?.animate === 'function');
 
   useLayoutEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || !canAnimateRef.current) return;
 
     const nodes = Array.from(container.querySelectorAll('[data-flip-key]'));
     const currentRects = new Map();
