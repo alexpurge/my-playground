@@ -298,7 +298,7 @@ const styles = `
     border-radius: 0;
     background: transparent;
     color: #c5c5d1;
-    font-size: 0.5rem;
+    font-size: 1rem;
     line-height: 1;
     cursor: pointer;
     z-index: 20;
@@ -312,8 +312,8 @@ const styles = `
   }
 
   .sale-popup-button {
-    width: 100%;
-    padding: 1rem 1.5rem;
+    width: 50%;
+    padding: 1.5rem 1.5rem;
     border-radius: 0.375rem;
     border: none;
     font-weight: 700;
@@ -373,7 +373,8 @@ const styles = `
     }
 
     .sale-popup-button {
-      padding: 1rem 1.5rem;
+      width: 100%;
+      padding: 1.5rem 1.5rem;
       font-size: 1.125rem;
     }
   }
@@ -2665,6 +2666,39 @@ export default function App() {
   const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
   const [salePopupData, setSalePopupData] = useState(null);
   const salePopupTimeoutRef = useRef(null);
+  const audioContextRef = useRef(null);
+
+  const playChaChing = () => {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const context = audioContextRef.current || new AudioContextClass();
+    audioContextRef.current = context;
+
+    if (context.state === 'suspended') {
+      context.resume().catch(() => {});
+    }
+
+    const now = context.currentTime;
+    const gainNode = context.createGain();
+    gainNode.connect(context.destination);
+    gainNode.gain.setValueAtTime(0.0001, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.35, now + 0.015);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+
+    const buildTone = (frequency, start, end, type = 'triangle') => {
+      const oscillator = context.createOscillator();
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, now + start);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.08, now + end);
+      oscillator.connect(gainNode);
+      oscillator.start(now + start);
+      oscillator.stop(now + end);
+    };
+
+    buildTone(900, 0, 0.18, 'triangle');
+    buildTone(1450, 0.09, 0.34, 'sine');
+  };
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -2679,6 +2713,8 @@ export default function App() {
   };
 
   const triggerSalePopup = (payload) => {
+    playChaChing();
+
     setSalePopupData({
       customerName: payload?.customerName || 'Test Customer',
       businessName: payload?.businessName || payload?.customerName || 'Test Business',
@@ -2713,6 +2749,14 @@ export default function App() {
       }
     };
   }, [credentials?.stripeKey]);
+
+  useEffect(() => {
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
 
   // Toast Handler
   const notify = (message, type = 'error') => {
