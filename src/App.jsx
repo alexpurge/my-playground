@@ -2023,9 +2023,11 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   useEffect(() => {
     let isMounted = true;
     const isDemo = apiId === 'demo';
+    let demoTimeout;
+    let demoInterval;
 
     if (isDemo) {
-      setTimeout(() => {
+      demoTimeout = setTimeout(() => {
         const runDemo = () => {
           const mocks = generateMockData();
           const activeMocks = mocks.filter(agent => agent.dials > 0 || agent.talkTime > 0);
@@ -2044,10 +2046,16 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
           setLoading(false); 
         };
         runDemo();
-        const interval = setInterval(runDemo, 5000); 
-        return () => clearInterval(interval);
+        demoInterval = setInterval(runDemo, 5000);
       }, 2000);
-      return;
+      return () => {
+        if (demoTimeout) {
+          clearTimeout(demoTimeout);
+        }
+        if (demoInterval) {
+          clearInterval(demoInterval);
+        }
+      };
     } 
 
     const headers = { 'Authorization': 'Basic ' + btoa(`${apiId}:${apiToken}`), 'Content-Type': 'application/json' };
@@ -2915,8 +2923,8 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (chaChingUrlRef.current) {
-        URL.revokeObjectURL(chaChingUrlRef.current);
+      if (onboardingDingUrlRef.current) {
+        URL.revokeObjectURL(onboardingDingUrlRef.current);
       }
     };
   }, []);
