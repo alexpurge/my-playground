@@ -219,6 +219,16 @@ const styles = `
   .sale-popup-pulse.two { top: 50%; left: 10%; width: 3rem; height: 3rem; background: #2f855a; animation-duration: 4s; animation-delay: 1.5s; }
   .sale-popup-pulse.three { top: 10%; left: 25%; width: 4rem; height: 4rem; background: rgba(45, 55, 72, 0.5); }
   .sale-popup-pulse.four { bottom: 25%; right: 25%; width: 1.25rem; height: 1.25rem; background: #ec4899; animation-duration: 4s; animation-delay: 1.5s; }
+  .sale-popup-pulse.five {
+    position: static;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: rgba(96, 165, 250, 0.6);
+    margin: 0 0.75rem;
+    flex-shrink: 0;
+    animation-duration: 4s;
+    animation-delay: 0.8s;
+  }
 
   @keyframes softPulse {
     0%, 100% { transform: scale(0.85); opacity: 0.4; }
@@ -282,33 +292,33 @@ const styles = `
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
-    width: 1.5rem;
-    height: 1.5rem;
+    width: auto;
+    height: auto;
     border: none;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    background: transparent;
     color: #c5c5d1;
-    font-size: 0.875rem;
+    font-size: 0.5rem;
     line-height: 1;
     cursor: pointer;
     z-index: 20;
-    display: grid;
-    place-items: center;
+    display: block;
+    padding: 0;
   }
 
   .sale-popup-close:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: transparent;
     color: #ffffff;
   }
 
   .sale-popup-button {
     width: 100%;
-    padding: 2rem 3rem;
+    padding: 1rem 1.5rem;
     border-radius: 0.375rem;
     border: none;
     font-weight: 700;
     color: #ffffff;
-    font-size: 2.25rem;
+    font-size: 1.125rem;
     letter-spacing: 0.025em;
     background: #ea580c;
     transition: all 300ms ease-in-out;
@@ -2503,7 +2513,7 @@ const PopupConfetti = () => {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height - canvas.height;
         this.size = Math.random() * 8 + 4;
-        this.vy = (Math.random() * 1.5 + 0.8) * 1.5;
+        this.vy = (Math.random() * 1.5 + 0.8) * 2.25;
         this.angle = Math.random() * Math.PI * 2;
         this.spin = (Math.random() - 0.5) * 5;
         this.color = colors[Math.floor(Math.random() * colors.length)];
@@ -2628,8 +2638,9 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
               Payment succeeded for <strong>{saleData.businessName}</strong>.
             </p>
 
-            <p className="sale-popup-text">
+            <p className="sale-popup-text" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               Contact: <strong>{saleData.customerName}</strong>
+              <span className="sale-popup-pulse five" />
             </p>
           </div>
 
