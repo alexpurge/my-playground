@@ -2689,13 +2689,13 @@ export default function App() {
   const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
   const [salePopupData, setSalePopupData] = useState(null);
   const salePopupTimeoutRef = useRef(null);
-  const chaChingUrlRef = useRef(null);
+  const onboardingDingUrlRef = useRef(null);
 
-  const playChaChing = async () => {
+  const playOnboardingDing = async () => {
     if (!credentials?.elevenLabsApiKey) return;
 
     try {
-      let soundUrl = chaChingUrlRef.current;
+      let soundUrl = onboardingDingUrlRef.current;
 
       if (!soundUrl) {
         const response = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
@@ -2706,7 +2706,7 @@ export default function App() {
             Accept: 'audio/mpeg',
           },
           body: JSON.stringify({
-            text: 'Bright, clean cash register cha-ching with coin sparkle. Avoid horn, buzz, buzzer, alarm, siren, or synthetic beeps.',
+            text: 'Clean, short, single text-message style ding in the spirit of a modern smartphone notification. Bright and pleasant, no cash register or coin sounds, no buzz, alarm, or harsh synthetic beeps.',
             duration_seconds: 1.5,
             prompt_influence: 1,
           }),
@@ -2716,7 +2716,7 @@ export default function App() {
 
         const audioBlob = await response.blob();
         soundUrl = URL.createObjectURL(audioBlob);
-        chaChingUrlRef.current = soundUrl;
+        onboardingDingUrlRef.current = soundUrl;
       }
 
       const audio = new Audio(soundUrl);
@@ -2739,7 +2739,7 @@ export default function App() {
   };
 
   const triggerSalePopup = (payload) => {
-    playChaChing();
+    playOnboardingDing();
 
     setSalePopupData({
       customerName: payload?.customerName || 'Test Customer',
