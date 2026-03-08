@@ -154,11 +154,19 @@ const styles = `
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: #0f0f12;
+    background: rgba(15, 15, 18, 0.38);
+    backdrop-filter: saturate(115%) blur(2px);
+    -webkit-backdrop-filter: saturate(115%) blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 1rem;
+    animation: salePopupOverlayFade 260ms ease-out;
+  }
+
+  @keyframes salePopupOverlayFade {
+    from { background: rgba(15, 15, 18, 0); }
+    to { background: rgba(15, 15, 18, 0.38); }
   }
 
   .sale-popup-ambient {
