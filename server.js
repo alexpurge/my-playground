@@ -5,7 +5,7 @@ import Stripe from 'stripe';
 import { Server as SocketIOServer } from 'socket.io';
 
 const PORT = Number(globalThis.process?.env?.PORT || 8787);
-const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || 'whsec_Ppiu009rD9FjqtejQ37jKgIAaFyK3SwP').trim();
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ? process.env.STRIPE_WEBHOOK_SECRET.trim() : 'whsec_Ppiu009rD9FjqtejQ37jKgIAaFyK3SwP';
 
 const app = express();
 const httpServer = createServer(app);
@@ -50,7 +50,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
     }
   }
 
-  if (event.type === 'checkout.session.completed') {
+  if (event.type === 'checkout.session.completed' || event.type === 'payment_intent.succeeded') {
     const session = event.data.object;
     const customerId = session?.customer;
     const isNewlyCreatedCustomer = customerId ? newlyCreatedCustomerIds.has(customerId) : false;
