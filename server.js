@@ -5,7 +5,7 @@ import Stripe from 'stripe';
 import { Server as SocketIOServer } from 'socket.io';
 
 const PORT = Number(globalThis.process?.env?.PORT || 8787);
-const STRIPE_WEBHOOK_SECRET = 'whsec_Ppiu009rD9FjqtejQ37jKgIAaFyK3SwP';
+const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || 'whsec_Ppiu009rD9FjqtejQ37jKgIAaFyK3SwP').trim();
 
 const app = express();
 const httpServer = createServer(app);
