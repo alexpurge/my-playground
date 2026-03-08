@@ -2632,9 +2632,13 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
         <PopupConfetti />
 
         <div className="sale-popup-content">
-          <h2 className="sale-popup-heading"><span className="sale-popup-heading-icon" role="img" aria-label="party">🎉</span>NEW CLIENT ONBOARDING</h2>
+          <h2 className="sale-popup-heading"><span className="sale-popup-heading-icon" role="img" aria-label="confetti">🎉</span>NEW CLIENT ONBOARDING<span className="sale-popup-heading-icon" role="img" aria-label="confetti">🎉</span></h2>
 
           <div className="sale-popup-details">
+            <p className="sale-popup-text" style={{ display: 'flex', justifyContent: 'center' }}>
+              <span role="img" aria-label="confetti">🎉</span>
+            </p>
+
             <p className="sale-popup-text">
               Payment succeeded for <strong>{saleData.businessName}</strong>.
             </p>
@@ -2666,38 +2670,41 @@ export default function App() {
   const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
   const [salePopupData, setSalePopupData] = useState(null);
   const salePopupTimeoutRef = useRef(null);
-  const audioContextRef = useRef(null);
+  const chaChingUrlRef = useRef(null);
 
-  const playChaChing = () => {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
+  const playChaChing = async () => {
+    if (!credentials?.elevenLabsApiKey) return;
 
-    const context = audioContextRef.current || new AudioContextClass();
-    audioContextRef.current = context;
+    try {
+      let soundUrl = chaChingUrlRef.current;
 
-    if (context.state === 'suspended') {
-      context.resume().catch(() => {});
+      if (!soundUrl) {
+        const response = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
+          method: 'POST',
+          headers: {
+            'xi-api-key': credentials.elevenLabsApiKey,
+            'Content-Type': 'application/json',
+            Accept: 'audio/mpeg',
+          },
+          body: JSON.stringify({
+            text: 'Short celebratory cash register cha-ching sound effect.',
+            duration_seconds: 2,
+            prompt_influence: 1,
+          }),
+        });
+
+        if (!response.ok) return;
+
+        const audioBlob = await response.blob();
+        soundUrl = URL.createObjectURL(audioBlob);
+        chaChingUrlRef.current = soundUrl;
+      }
+
+      const audio = new Audio(soundUrl);
+      audio.play().catch(() => {});
+    } catch {
+      // Intentionally silent when sound generation is unavailable.
     }
-
-    const now = context.currentTime;
-    const gainNode = context.createGain();
-    gainNode.connect(context.destination);
-    gainNode.gain.setValueAtTime(0.0001, now);
-    gainNode.gain.exponentialRampToValueAtTime(0.35, now + 0.015);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
-
-    const buildTone = (frequency, start, end, type = 'triangle') => {
-      const oscillator = context.createOscillator();
-      oscillator.type = type;
-      oscillator.frequency.setValueAtTime(frequency, now + start);
-      oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.08, now + end);
-      oscillator.connect(gainNode);
-      oscillator.start(now + start);
-      oscillator.stop(now + end);
-    };
-
-    buildTone(900, 0, 0.18, 'triangle');
-    buildTone(1450, 0.09, 0.34, 'sine');
   };
 
   const toggleTheme = () => {
@@ -2752,8 +2759,8 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close().catch(() => {});
+      if (chaChingUrlRef.current) {
+        URL.revokeObjectURL(chaChingUrlRef.current);
       }
     };
   }, []);
