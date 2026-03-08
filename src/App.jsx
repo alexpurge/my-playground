@@ -1328,7 +1328,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
   const [error, setError] = useState(null);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
   const tokenClient = useRef(null);
-  const credentialsRef = useRef({ token: '', key: '', elKey: '' }); // Store parsed creds here
+  const credentialsRef = useRef({ token: '', key: '', elKey: '', stripeKey: '' }); // Store parsed creds here
 
   // Load Google Scripts on Mount
   useEffect(() => {
@@ -1357,7 +1357,8 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
             credentialsRef.current.token, 
             credentialsRef.current.key, 
             resp.access_token,
-            credentialsRef.current.elKey // Passed 11Labs Key
+            credentialsRef.current.elKey,
+            credentialsRef.current.stripeKey
           );
         },
       });
@@ -1373,9 +1374,9 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
 
     const lines = inputText.trim().split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-    // Validate we have at least 3 lines (Token + Google Key + ElevenLabs Key)
-    if (lines.length < 3) {
-      const msg = "Please paste credentials:\nLine 1: Aircall API Token\nLine 2: Google API Key\nLine 3: ElevenLabs API Key";
+    // Validate we have at least 4 lines (Token + Google Key + ElevenLabs Key + Stripe Live Secret Key)
+    if (lines.length < 4) {
+      const msg = "Please paste credentials:\nLine 1: Aircall API Token\nLine 2: Google API Key\nLine 3: ElevenLabs API Key\nLine 4: Stripe Live Secret Key";
       setError(msg);
       notify("Missing Credentials. Check input.", 'error');
       return;
@@ -1389,7 +1390,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
     }
 
     // Store for callback
-    credentialsRef.current = { token: lines[0], key: lines[1], elKey: lines[2] };
+    credentialsRef.current = { token: lines[0], key: lines[1], elKey: lines[2], stripeKey: lines[3] };
 
     // Trigger Google Auth Popup
     try {
@@ -1426,7 +1427,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
               value={inputText} 
               onChange={(e) => setInputText(e.target.value)} 
               className="input-field" 
-              placeholder={`Aircall API Token\nGoogle API Key\nElevenLabs API Key`}
+              placeholder={`Aircall API Token\nGoogle API Key\nElevenLabs API Key\nStripe Live Secret Key`}
               style={{ height: '8rem', resize: 'none', fontFamily: 'monospace', lineHeight: '1.5' }}
             />
           </div>
@@ -2655,6 +2656,10 @@ export default function App() {
   useEffect(() => {
     const socket = io('http://localhost:8787');
 
+    if (credentials?.stripeKey) {
+      socket.emit('set_stripe_key', credentials.stripeKey);
+    }
+
     socket.on('sale_cleared', (payload) => {
       triggerSalePopup(payload);
     });
@@ -2665,7 +2670,7 @@ export default function App() {
         clearTimeout(salePopupTimeoutRef.current);
       }
     };
-  }, []);
+  }, [credentials?.stripeKey]);
 
   // Toast Handler
   const notify = (message, type = 'error') => {
@@ -2679,9 +2684,9 @@ export default function App() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
   
-  // UPDATED: Accept elevenLabsApiKey
-  const handleConnect = (id, token, apiKey, googleToken, elevenLabsApiKey) => { 
-    setCredentials({ id, token, apiKey, googleToken, elevenLabsApiKey }); 
+  // UPDATED: Accept elevenLabsApiKey and stripeKey
+  const handleConnect = (id, token, apiKey, googleToken, elevenLabsApiKey, stripeKey) => { 
+    setCredentials({ id, token, apiKey, googleToken, elevenLabsApiKey, stripeKey }); 
   };
   
   const handleDemo = () => {
