@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { io } from 'socket.io-client';
 
 // -----------------------------------------------------------------------------
@@ -408,6 +408,80 @@ const styles = `
     cursor: pointer;
   }
 
+
+  .simulate-sale-button {
+    transition: transform 220ms ease, box-shadow 280ms ease, background-color 280ms ease, border-color 280ms ease;
+    box-shadow: 0 8px 16px -12px rgba(249, 115, 22, 0.7);
+  }
+
+  .simulate-sale-button:hover {
+    transform: translateY(-2px) scale(1.02);
+    border-color: rgba(249, 115, 22, 0.95);
+    background: rgba(249, 115, 22, 0.26);
+    box-shadow: 0 16px 26px -14px rgba(249, 115, 22, 0.85);
+  }
+
+  .simulate-sale-button:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .dashboard-header,
+  .bookings-header,
+  .footer {
+    animation: fade-slide-up 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .table-header {
+    animation: fade-slide-up 720ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .upcoming-summary-card {
+    animation: upcoming-card-background-pulse 2s infinite, fade-slide-up 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .upcoming-summary-title {
+    position: relative;
+  }
+
+  .booking-card {
+    animation: fade-slide-up 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center top;
+  }
+
+  .booking-card:nth-child(2) { animation-delay: 45ms; }
+  .booking-card:nth-child(3) { animation-delay: 85ms; }
+  .booking-card:nth-child(4) { animation-delay: 120ms; }
+  .booking-card:nth-child(5) { animation-delay: 160ms; }
+
+  .agent-row {
+    animation: fade-slide-up 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .agent-row.lead-change {
+    animation: winner-pulse 3s infinite ease-in-out, lead-change-glow 1100ms ease;
+  }
+
+  .summary-title-transition {
+    display: inline-block;
+    animation: summary-title-swap 420ms ease;
+  }
+
+  @keyframes fade-slide-up {
+    from { opacity: 0; transform: translateY(14px) scale(0.992); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes summary-title-swap {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes lead-change-glow {
+    0% { box-shadow: 0 0 0 0 rgba(251, 146, 60, 0); }
+    25% { box-shadow: 0 0 0 6px rgba(251, 146, 60, 0.38); }
+    100% { box-shadow: 0 0 0 0 rgba(251, 146, 60, 0); }
+  }
+
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(100%); }
     to { opacity: 1; transform: translateX(0); }
@@ -640,7 +714,7 @@ const styles = `
     align-items: flex-start;
     gap: 0.75rem;
     box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.45);
-    animation: upcoming-card-background-pulse 2s infinite;
+    animation: upcoming-card-background-pulse 2s infinite, fade-slide-up 600ms cubic-bezier(0.22, 1, 0.36, 1);
     height: auto;
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
@@ -1362,6 +1436,50 @@ const resolveAgentStatus = (agent, statusMap) => {
   return AGENT_STATUS_META[status] || AGENT_STATUS_META.unavailable;
 };
 
+
+const useFlipListAnimation = (items) => {
+  const containerRef = useRef(null);
+  const previousRectsRef = useRef(new Map());
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const nodes = Array.from(container.querySelectorAll('[data-flip-key]'));
+    const currentRects = new Map();
+
+    nodes.forEach((node) => {
+      const key = node.getAttribute('data-flip-key');
+      if (!key) return;
+      const rect = node.getBoundingClientRect();
+      currentRects.set(key, rect);
+      const previousRect = previousRectsRef.current.get(key);
+
+      if (previousRect) {
+        const deltaX = previousRect.left - rect.left;
+        const deltaY = previousRect.top - rect.top;
+
+        if (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5) {
+          node.animate(
+            [
+              { transform: `translate(${deltaX}px, ${deltaY}px)` },
+              { transform: 'translate(0, 0)' },
+            ],
+            {
+              duration: 650,
+              easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            }
+          );
+        }
+      }
+    });
+
+    previousRectsRef.current = currentRects;
+  }, [items]);
+
+  return containerRef;
+};
+
 /**
  * COMPONENTS
  */
@@ -1509,11 +1627,12 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
   );
 };
 
-const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap }) => {
+const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap, hasLeadChange }) => {
   const isTarget = agent.isTarget;
   const isWinner = rank === 1 && !isTarget;
   let rowClass = 'agent-row';
   if (isWinner) rowClass += ' winner';
+  if (hasLeadChange && isWinner) rowClass += ' lead-change';
   if (isTarget) rowClass += ' target';
 
   const dialScore = agent.dials;
@@ -1527,7 +1646,7 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap }) => {
   const statusMeta = resolveAgentStatus(agent, statusMap);
 
   return (
-    <div className={rowClass}>
+    <div className={rowClass} data-flip-key={String(agent.id)}>
       <div className="rank-badge">
         {isWinner ? <TrophyIcon size={30} fill="currentColor" /> : (isTarget ? <ZapIcon size={20} fill="currentColor" /> : rank)}
       </div>
@@ -1635,6 +1754,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const latestAppliedSyncId = useRef(0);
   const latestCallTimestampSeen = useRef(0);
   const websocketRef = useRef(null);
+  const previousLeaderRef = useRef(null);
+  const [leaderChangedAt, setLeaderChangedAt] = useState(0);
+
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -2199,6 +2321,15 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const maxDials = Math.max(...agents.map(a => a.dials), 1);
   const maxTalk = Math.max(...agents.map(a => a.talkTime), 1);
 
+  useEffect(() => {
+    const currentLeader = agents.find((agent) => !agent.isTarget)?.id ?? null;
+    if (previousLeaderRef.current && currentLeader && previousLeaderRef.current !== currentLeader) {
+      setLeaderChangedAt(Date.now());
+    }
+    previousLeaderRef.current = currentLeader;
+  }, [agents]);
+
+
   const formattedDay = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Brisbane', weekday: 'long' }).format(currentTime);
   const formattedDate = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Brisbane', day: '2-digit', month: '2-digit', year: 'numeric' }).format(currentTime);
   const formattedTime = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Brisbane', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(currentTime);
@@ -2217,6 +2348,10 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   });
 
   const totalBookings = upcomingBookings.length;
+
+  const agentsListRef = useFlipListAnimation(agents);
+  const bookingsListRef = useFlipListAnimation(upcomingBookings);
+
 
   const brisbaneHourKeyFormatter = new Intl.DateTimeFormat('en-AU', {
     timeZone: 'Australia/Brisbane',
@@ -2328,10 +2463,10 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                 </div>
              </div>
           </div>
-          <div className="bookings-list">
+          <div className="bookings-list" ref={bookingsListRef}>
              <div className="upcoming-summary-card">
                 <div className="upcoming-summary-content">
-                  <h3 className="upcoming-summary-title">{summaryCardTitle}</h3>
+                  <h3 key={summaryCardTitle} className="upcoming-summary-title"><span className="summary-title-transition">{summaryCardTitle}</span></h3>
                   {upcomingHourRepNames.length > 0 && (
                     <div className="upcoming-summary-reps">
                       {upcomingHourRepNames.map((repName) => (
@@ -2375,7 +2510,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                   }
 
                   return (
-                    <div key={idx} className="booking-card">
+                    <div key={booking.id || idx} className="booking-card" data-flip-key={String(booking.id || idx)}>
                        <div className="booking-meta">
                           <span className="booking-time"><CalendarIcon size={20} /> {timeStr}</span>
                           <span className="booking-status">Confirmed</span>
@@ -2467,9 +2602,9 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
               <div style={{ width: '10.8rem', textAlign: 'right', flexShrink: 0 }}>Total</div>
             </div>
 
-            <div>
+            <div ref={agentsListRef}>
               {agents.map((agent, index) => (
-                <AgentRow key={agent.id} rank={index + 1} agent={agent} maxDials={maxDials} maxTalk={maxTalk} statusMap={agentStatuses} />
+                <AgentRow key={agent.id} rank={index + 1} agent={agent} maxDials={maxDials} maxTalk={maxTalk} statusMap={agentStatuses} hasLeadChange={currentTime.getTime() - leaderChangedAt < 1200} />
               ))}
             </div>
           </div>
