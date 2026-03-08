@@ -154,280 +154,177 @@ const styles = `
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: radial-gradient(circle at center, rgba(30, 41, 59, 0.5) 0%, rgba(2, 6, 23, 0.9) 74%);
+    background: #0f0f12;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 1rem;
   }
 
+  .sale-popup-ambient {
+    position: absolute;
+    width: 80%;
+    max-width: 800px;
+    height: 400px;
+    background: linear-gradient(to right, rgba(234, 88, 12, 0.2), rgba(245, 158, 11, 0.1), rgba(154, 52, 18, 0.2));
+    filter: blur(100px);
+    border-radius: 9999px;
+    pointer-events: none;
+  }
+
   .sale-popup-card {
     position: relative;
-    width: min(720px, 95vw);
-    min-height: 420px;
-    border-radius: 1.25rem;
-    background:
-      radial-gradient(circle at 16% 12%, rgba(249, 115, 22, 0.24) 0%, rgba(249, 115, 22, 0.03) 26%, transparent 54%),
-      radial-gradient(circle at 84% 90%, rgba(59, 130, 246, 0.22) 0%, rgba(59, 130, 246, 0.03) 32%, transparent 58%),
-      linear-gradient(145deg, #111827 0%, #0b1120 55%, #111827 100%);
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    box-shadow: 0 28px 70px rgba(2, 6, 23, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    width: 100%;
+    max-width: 640px;
+    background: #1a1b1f;
+    border: 1px solid #2d2e35;
+    border-radius: 0.75rem;
+    padding: 2rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    z-index: 10;
     overflow: hidden;
   }
 
-  .sale-popup-confetti {
+  .sale-popup-card-glow {
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 400px;
+    height: 300px;
+    background: rgba(249, 115, 22, 0.15);
+    filter: blur(60px);
+    border-radius: 9999px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .sale-popup-pulse {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    z-index: 0;
+    animation: softPulse 3.5s ease-in-out infinite;
+  }
+
+  .sale-popup-pulse.one { top: 20%; right: 15%; width: 5rem; height: 5rem; background: #4c3a51; }
+  .sale-popup-pulse.two { top: 50%; left: 10%; width: 3rem; height: 3rem; background: #2f855a; animation-duration: 4s; animation-delay: 1.5s; }
+  .sale-popup-pulse.three { top: 10%; left: 25%; width: 4rem; height: 4rem; background: rgba(45, 55, 72, 0.5); }
+  .sale-popup-pulse.four { bottom: 25%; right: 25%; width: 1.25rem; height: 1.25rem; background: #ec4899; animation-duration: 4s; animation-delay: 1.5s; }
+
+  @keyframes softPulse {
+    0%, 100% { transform: scale(0.85); opacity: 0.4; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+
+  .sale-popup-confetti-canvas {
     position: absolute;
     inset: 0;
-    z-index: 1;
+    pointer-events: none;
+    z-index: 0;
     overflow: hidden;
-    pointer-events: none;
-  }
-
-  .sale-popup-humming-blobs {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    filter: saturate(1.1);
-  }
-
-  .sale-popup-humming-blob {
-    position: absolute;
-    border-radius: 999px;
-    opacity: 0.52;
-    transform: translate3d(0, 0, 0) scale(1);
-    animation-name: popupHummingBlob;
-    animation-timing-function: ease-in-out;
-    animation-iteration-count: infinite;
-    will-change: transform, opacity;
-  }
-
-  .sale-popup-confetti-piece {
-    position: absolute;
-    opacity: 0;
-    transform: translate3d(0, 0, 0) scale(0.2);
-    animation-name: popupConfettiFirework;
-    animation-timing-function: cubic-bezier(0.12, 0.56, 0.2, 1);
-    animation-iteration-count: infinite;
-    will-change: transform, opacity;
-    box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
-  }
-
-  @keyframes popupConfettiFirework {
-    0% {
-      opacity: 0;
-      transform: translate3d(0, 0, 0) scale(0.2);
-    }
-    16% {
-      opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    82% {
-      opacity: 0.75;
-    }
-    100% {
-      transform: translate3d(var(--dx, 0), var(--dy, 0), 0) scale(0.55);
-      opacity: 0;
-    }
-  }
-
-  @keyframes popupHummingBlob {
-    0%,
-    100% {
-      opacity: 0.38;
-      transform: translate3d(0, 0, 0) scale(0.95);
-    }
-    50% {
-      opacity: 0.8;
-      transform: translate3d(0, -6px, 0) scale(1.12);
-    }
+    border-radius: 0.75rem;
   }
 
   .sale-popup-content {
     position: relative;
-    z-index: 2;
-    min-height: 420px;
-    padding: 2.2rem;
+    z-index: 10;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    align-items: stretch;
-    gap: 1.3rem;
-  }
-
-  .sale-popup-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-
-  .sale-popup-badge {
-    display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    border-radius: 999px;
-    background: rgba(30, 41, 59, 0.68);
-    border: 1px solid rgba(148, 163, 184, 0.34);
-    color: #e2e8f0;
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 0.4rem 0.78rem;
-  }
-
-  .sale-popup-badge-dot {
-    width: 0.42rem;
-    height: 0.42rem;
-    border-radius: 999px;
-    background: #22c55e;
-    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
   }
 
   .sale-popup-heading {
-    margin: 0;
-    color: #f8fafc;
-    letter-spacing: 0.01em;
-    font-size: clamp(1.75rem, 4.4vw, 2.75rem);
-    font-weight: 800;
-    line-height: 1.08;
-    text-align: left;
+    margin: 0 0 2rem;
+    font-size: 2rem;
+    white-space: nowrap;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
   }
 
   .sale-popup-heading-icon {
-    margin-right: 0.4rem;
-    font-size: 0.7em;
-    vertical-align: baseline;
-  }
-
-  .sale-popup-lead {
-    margin: 0.75rem 0 0;
-    color: #cbd5e1;
-    max-width: 28rem;
-    line-height: 1.45;
-    font-size: 1rem;
-    text-align: left;
-  }
-
-  .sale-popup-inline-burst {
-    position: absolute;
-    z-index: 2;
-    font-size: 1.45rem;
-    opacity: 0.8;
-    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
-    pointer-events: none;
-  }
-
-  .sale-popup-inline-burst.left {
-    top: 2.4rem;
-    right: 5rem;
-    left: auto;
-  }
-
-  .sale-popup-inline-burst.mid {
-    top: 4rem;
-    right: 2.6rem;
-    left: auto;
-    transform: rotate(12deg);
+    font-size: 1.875rem;
   }
 
   .sale-popup-details {
-    margin-top: 0.35rem;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.85rem;
-  }
-
-  .sale-popup-detail-card {
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    background: rgba(15, 23, 42, 0.72);
-    border-radius: 0.85rem;
-    padding: 0.85rem 1rem;
-    text-align: left;
-  }
-
-  .sale-popup-label {
-    margin: 0;
-    font-size: 0.74rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-weight: 700;
-    color: #94a3b8;
+    gap: 1rem;
+    text-align: center;
+    font-size: 15px;
+    margin-bottom: 2.5rem;
+    width: 100%;
   }
 
   .sale-popup-text {
-    margin: 0.35rem 0 0;
-    color: #f8fafc;
-    font-size: clamp(1rem, 1.55vw, 1.22rem);
-    line-height: 1.34;
-    font-weight: 600;
+    margin: 0;
+    color: #c5c5d1;
   }
 
   .sale-popup-text strong {
-    color: #fdba74;
-    font-weight: 800;
+    color: #e1e1e8;
+    font-weight: 700;
   }
 
   .sale-popup-subtext {
-    color: #a5b4fc;
-    opacity: 0.92;
-    margin-top: 0;
-    margin-bottom: 0;
-    text-align: left;
-    font-size: 0.86rem;
-  }
-
-  .sale-popup-footer {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
+    margin: 0;
+    color: #8c8c9a;
+    font-size: 0.875rem;
+    padding-top: 0.5rem;
   }
 
   .sale-popup-button {
-    margin-top: 0;
     width: 100%;
-    max-width: none;
+    padding: 1rem 1.5rem;
+    border-radius: 0.375rem;
     border: none;
-    border-radius: 0.7rem;
-    padding: 0.9rem 1rem;
-    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-    color: #fff7ed;
     font-weight: 700;
-    font-size: 1rem;
-    line-height: 1.2;
+    color: #ffffff;
+    font-size: 1.125rem;
+    letter-spacing: 0.025em;
+    background: #ea580c;
+    transition: all 300ms ease-in-out;
+    box-shadow: 0 4px 14px 0 rgba(234, 88, 12, 0.39);
+    position: relative;
+    overflow: hidden;
     cursor: pointer;
-    box-shadow: 0 10px 28px rgba(249, 115, 22, 0.35);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
 
   .sale-popup-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 14px 32px rgba(249, 115, 22, 0.4);
+    background: #f97316;
+    box-shadow: 0 6px 20px rgba(234, 88, 12, 0.23);
   }
 
-  .sale-popup-button:focus-visible {
-    outline: 2px solid rgba(253, 186, 116, 0.95);
-    outline-offset: 2px;
+  .sale-popup-button:active {
+    transform: scale(0.98);
+    background: #c2410c;
+  }
+
+  .sale-popup-button-shine {
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: transform 700ms ease-in-out;
+  }
+
+  .sale-popup-button-shine.active {
+    transform: translateX(100%);
   }
 
   @media (max-width: 640px) {
-    .sale-popup-content {
-      padding: 1.35rem;
-      gap: 1rem;
+    .sale-popup-card {
+      padding: 2rem 1.5rem;
     }
 
-    .sale-popup-header {
-      flex-direction: column;
-    }
-
-    .sale-popup-details {
-      grid-template-columns: 1fr;
-    }
-
-    .sale-popup-inline-burst.left,
-    .sale-popup-inline-burst.mid {
-      display: none;
+    .sale-popup-heading {
+      font-size: 1.5rem;
+      white-space: normal;
+      text-align: center;
     }
   }
 
@@ -2539,117 +2436,172 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 };
 
 
-const SaleClearedPopup = ({ saleData, onClose }) => {
-  const burstOrigins = [
-    { x: 18, y: 24 },
-    { x: 50, y: 15 },
-    { x: 82, y: 26 },
-    { x: 30, y: 58 },
-    { x: 70, y: 62 },
-  ];
+const PopupConfetti = () => {
+  const canvasRef = useRef(null);
+  const mouseRef = useRef({ x: -1000, y: -1000 });
 
-  const confettiPieces = burstOrigins.flatMap((origin, burstIndex) =>
-    Array.from({ length: 14 }, (_, pieceIndex) => {
-      const angle = (Math.PI * 2 * pieceIndex) / 14;
-      const distance = 36 + ((burstIndex + pieceIndex) % 5) * 18;
-      return {
-        id: `${burstIndex}-${pieceIndex}`,
-        left: `${origin.x}%`,
-        top: `${origin.y}%`,
-        size: 5 + ((pieceIndex + burstIndex) % 4),
-        dx: `${Math.cos(angle) * distance}px`,
-        dy: `${Math.sin(angle) * distance}px`,
-        delay: `${burstIndex * 0.45 + (pieceIndex % 4) * 0.06}s`,
-        duration: `${1.35 + (pieceIndex % 3) * 0.22}s`,
-        hue: (burstIndex * 52 + pieceIndex * 23) % 360,
-        shape: (pieceIndex + burstIndex) % 5,
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+
+    const colors = [
+      '#4ade80',
+      '#60a5fa',
+      '#f472b6',
+      '#c084fc',
+      '#fbbf24',
+      '#ea580c',
+      '#38bdf8',
+    ];
+    const shapes = ['square', 'rect'];
+    const particles = [];
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height - canvas.height;
+        this.size = Math.random() * 8 + 4;
+        this.vy = (Math.random() * 1.5 + 0.8) * 1.5;
+        this.angle = Math.random() * Math.PI * 2;
+        this.spin = (Math.random() - 0.5) * 5;
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+        this.shape = shapes[Math.floor(Math.random() * shapes.length)];
+        this.opacity = Math.random() * 0.4 + 0.15;
+        this.swayOffset = Math.random() * Math.PI * 2;
+        this.swaySpeed = Math.random() * 0.03 + 0.01;
+      }
+
+      update() {
+        this.y += this.vy;
+        this.angle += this.spin;
+        this.x += Math.sin(Date.now() * this.swaySpeed * 0.1 + this.swayOffset) * 0.4;
+
+        const dx = this.x - mouseRef.current.x;
+        const dy = this.y - mouseRef.current.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 100 && dist > 0) {
+          const force = (100 - dist) / 100;
+          this.x += (dx / dist) * force * 4;
+          this.y += (dy / dist) * force * 4;
+        }
+
+        if (this.y > canvas.height + 20) {
+          this.y = -20;
+          this.x = Math.random() * canvas.width;
+        }
+        if (this.x > canvas.width + 20) this.x = -20;
+        if (this.x < -20) this.x = canvas.width + 20;
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate((this.angle * Math.PI) / 180);
+        ctx.globalAlpha = this.opacity;
+        ctx.fillStyle = this.color;
+
+        if (this.shape === 'square') {
+          ctx.fillRect(-this.size, -this.size, this.size * 2, this.size * 2);
+        } else {
+          ctx.fillRect(-this.size * 1.5, -this.size / 2, this.size * 3, this.size);
+        }
+        ctx.restore();
+      }
+    }
+
+    const resizeCanvas = () => {
+      if (!canvas?.parentElement) return;
+      canvas.width = canvas.parentElement.offsetWidth;
+      canvas.height = canvas.parentElement.offsetHeight;
+    };
+
+    resizeCanvas();
+
+    for (let i = 0; i < 50; i += 1) {
+      particles.push(new Particle());
+    }
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach((particle) => {
+        particle.update();
+        particle.draw();
+      });
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    const handleMouseMove = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseRef.current = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
       };
-    })
-  );
+    };
 
-  const hummingBlobs = Array.from({ length: 8 }, (_, index) => ({
-    id: index,
-    left: `${10 + (index * 12) % 80}%`,
-    top: `${18 + (index * 17) % 66}%`,
-    size: 18 + (index % 4) * 8,
-    delay: `${index * 0.14}s`,
-    duration: `${1.8 + (index % 3) * 0.4}s`,
-    hue: (18 + index * 21) % 360,
-  }));
+    const handleMouseLeave = () => {
+      mouseRef.current = { x: -1000, y: -1000 };
+    };
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('mousemove', handleMouseMove);
+    canvas.parentElement?.addEventListener('mouseleave', handleMouseLeave);
+
+    render();
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('mousemove', handleMouseMove);
+      canvas.parentElement?.removeEventListener('mouseleave', handleMouseLeave);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="sale-popup-confetti-canvas" />;
+};
+
+const SaleClearedPopup = ({ saleData, onClose }) => {
+  const [isHovering, setIsHovering] = useState(false);
 
   if (!saleData) return null;
 
   return (
     <div className="sale-popup-overlay">
+      <div className="sale-popup-ambient" />
       <div className="sale-popup-card">
-        <div className="sale-popup-confetti">
-          {confettiPieces.map((piece) => (
-            <span
-              key={piece.id}
-              className="sale-popup-confetti-piece"
-              style={{
-                left: piece.left,
-                top: piece.top,
-                width: piece.shape === 0 ? `${piece.size + 7}px` : `${piece.size}px`,
-                height: piece.shape === 0 ? `${piece.size}px` : `${piece.size + (piece.shape === 2 ? 3 : 0)}px`,
-                backgroundColor: `hsl(${piece.hue} 95% 58%)`,
-                borderRadius: piece.shape === 0 ? '2px' : piece.shape === 1 ? '999px' : '4px',
-                transform: piece.shape === 2 ? 'rotate(18deg)' : undefined,
-                '--dx': piece.dx,
-                '--dy': piece.dy,
-                animationDelay: piece.delay,
-                animationDuration: piece.duration,
-              }}
-            />
-          ))}
-        </div>
-        <div className="sale-popup-humming-blobs">
-          {hummingBlobs.map((blob) => (
-            <span
-              key={blob.id}
-              className="sale-popup-humming-blob"
-              style={{
-                left: blob.left,
-                top: blob.top,
-                width: `${blob.size}px`,
-                height: `${blob.size}px`,
-                background: `radial-gradient(circle at 35% 35%, hsl(${blob.hue} 100% 88%) 0%, hsl(${blob.hue} 95% 58% / 0.82) 45%, hsl(${blob.hue} 95% 45% / 0.08) 100%)`,
-                boxShadow: `0 0 18px hsl(${blob.hue} 95% 58% / 0.55)`,
-                animationDelay: blob.delay,
-                animationDuration: blob.duration,
-              }}
-            />
-          ))}
-        </div>
+        <div className="sale-popup-card-glow" />
+        <div className="sale-popup-pulse one" />
+        <div className="sale-popup-pulse two" />
+        <div className="sale-popup-pulse three" />
+        <div className="sale-popup-pulse four" />
+
+        <PopupConfetti />
+
         <div className="sale-popup-content">
-          <span className="sale-popup-inline-burst left" aria-hidden="true">🎉</span>
-          <span className="sale-popup-inline-burst mid" aria-hidden="true">🎉</span>
-          <div className="sale-popup-header">
-            <div>
-              <h2 className="sale-popup-heading"><span className="sale-popup-heading-icon">🎉</span>New Client Onboarding</h2>
-              <p className="sale-popup-lead">A new onboarding has been activated and is ready for your team to action.</p>
-            </div>
-            <span className="sale-popup-badge">
-              <span className="sale-popup-badge-dot" aria-hidden="true" />
-              Payment Cleared
-            </span>
-          </div>
+          <h2 className="sale-popup-heading"><span className="sale-popup-heading-icon" role="img" aria-label="party">🎉</span>NEW CLIENT ONBOARDING</h2>
 
           <div className="sale-popup-details">
-            <div className="sale-popup-detail-card">
-              <p className="sale-popup-label">Business</p>
-              <p className="sale-popup-text"><strong>{saleData.businessName}</strong></p>
-            </div>
-            <div className="sale-popup-detail-card">
-              <p className="sale-popup-label">Primary Contact</p>
-              <p className="sale-popup-text"><strong>{saleData.customerName}</strong></p>
-            </div>
+            <p className="sale-popup-text">
+              Payment succeeded for <strong>{saleData.businessName}</strong>.
+            </p>
+
+            <p className="sale-popup-text">
+              Contact: <strong>{saleData.customerName}</strong>
+            </p>
+
+            <p className="sale-popup-subtext">Stripe event: simulated.local.preview (test)</p>
           </div>
 
-          <div className="sale-popup-footer">
-            <p className="sale-popup-text sale-popup-subtext">Stripe event: simulated.local.preview (test)</p>
-            <button className="sale-popup-button" onClick={onClose}>Continue to dashboard</button>
-          </div>
+          <button
+            className="sale-popup-button"
+            onClick={onClose}
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
+          >
+            Awesome — Keep Going
+            <span className={`sale-popup-button-shine ${isHovering ? 'active' : ''}`} />
+          </button>
         </div>
       </div>
     </div>
