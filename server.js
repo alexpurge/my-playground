@@ -5,7 +5,8 @@ import Stripe from 'stripe';
 import { Server as SocketIOServer } from 'socket.io';
 
 const PORT = Number(globalThis.process?.env?.PORT || 8787);
-const STRIPE_WEBHOOK_SECRET = 'whsec_Ppiu009rD9FjqtejQ37jKgIAaFyK3SwP';
+const STRIPE_WEBHOOK_SECRET =
+  globalThis.process?.env?.STRIPE_WEBHOOK_SECRET || 'whsec_Ppiu009rD9FjqtejQ37jKgIAaFyK3SwP';
 
 const app = express();
 const httpServer = createServer(app);
@@ -50,17 +51,29 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
     }
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const customerId = session?.customer;
+  if (event.type === 'checkout.session.completed' || event.type === 'payment_intent.succeeded') {
+    const payload = event.data.object;
+
+    const customerId = payload?.customer;
     const isNewlyCreatedCustomer = customerId ? newlyCreatedCustomerIds.has(customerId) : false;
 
-    console.log(`checkout.session.completed customerId: ${customerId || 'none'}`);
+    console.log(`${event.type} customerId: ${customerId || 'none'}`);
     console.log(`newlyCreatedCustomerIds has customerId: ${isNewlyCreatedCustomer}`);
 
-    const amountCents = Number(session?.amount_total || 0);
-    const customerName = session?.customer_details?.name || session?.metadata?.customer_name || 'Unknown Customer';
-    const businessName = session?.metadata?.business_name || customerName;
+    const amountCents =
+      event.type === 'checkout.session.completed'
+        ? Number(payload?.amount_total || 0)
+        : Number(payload?.amount_received || payload?.amount || 0);
+
+    const customerName =
+      event.type === 'checkout.session.completed'
+        ? payload?.customer_details?.name || payload?.metadata?.customer_name || 'Unknown Customer'
+        : payload?.shipping?.name ||
+          payload?.charges?.data?.[0]?.billing_details?.name ||
+          payload?.metadata?.customer_name ||
+          'Unknown Customer';
+
+    const businessName = payload?.metadata?.business_name || customerName;
 
     if (!isNewlyCreatedCustomer) {
       console.log('⚠️ Strict rule bypassed for testing: Firing pop-up for existing/test customer');
