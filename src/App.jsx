@@ -154,7 +154,7 @@ const styles = `
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: radial-gradient(circle at center, rgba(35, 20, 8, 0.52) 0%, rgba(0, 0, 0, 0.86) 75%);
+    background: radial-gradient(circle at center, rgba(30, 41, 59, 0.5) 0%, rgba(2, 6, 23, 0.9) 74%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -163,15 +163,15 @@ const styles = `
 
   .sale-popup-card {
     position: relative;
-    width: min(760px, 96vw);
-    min-height: 388px;
-    border-radius: 1.15rem;
+    width: min(720px, 95vw);
+    min-height: 420px;
+    border-radius: 1.25rem;
     background:
-      radial-gradient(circle at 18% 12%, rgba(241, 130, 50, 0.18) 0%, rgba(241, 130, 50, 0.02) 22%, transparent 48%),
-      radial-gradient(circle at 84% 86%, rgba(72, 97, 190, 0.17) 0%, rgba(72, 97, 190, 0.02) 24%, transparent 50%),
-      linear-gradient(135deg, #2a1a12 0%, #14182b 100%);
-    border: 1px solid rgba(138, 164, 255, 0.38);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04) inset, 0 0 44px rgba(245, 110, 0, 0.32);
+      radial-gradient(circle at 16% 12%, rgba(249, 115, 22, 0.24) 0%, rgba(249, 115, 22, 0.03) 26%, transparent 54%),
+      radial-gradient(circle at 84% 90%, rgba(59, 130, 246, 0.22) 0%, rgba(59, 130, 246, 0.03) 32%, transparent 58%),
+      linear-gradient(145deg, #111827 0%, #0b1120 55%, #111827 100%);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 28px 70px rgba(2, 6, 23, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
     overflow: hidden;
   }
 
@@ -246,87 +246,189 @@ const styles = `
   .sale-popup-content {
     position: relative;
     z-index: 2;
-    min-height: 388px;
-    padding: 2.2rem 2.5rem 2rem;
+    min-height: 420px;
+    padding: 2.2rem;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 1.3rem;
+  }
+
+  .sale-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .sale-popup-badge {
+    display: inline-flex;
     align-items: center;
-    text-align: center;
-    gap: 0.7rem;
+    gap: 0.45rem;
+    border-radius: 999px;
+    background: rgba(30, 41, 59, 0.68);
+    border: 1px solid rgba(148, 163, 184, 0.34);
+    color: #e2e8f0;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.4rem 0.78rem;
+  }
+
+  .sale-popup-badge-dot {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 999px;
+    background: #22c55e;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
   }
 
   .sale-popup-heading {
     margin: 0;
-    color: #f5ede4;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    font-size: clamp(1.9rem, 4.4vw, 3.05rem);
-    font-weight: 900;
-    line-height: 1.1;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+    color: #f8fafc;
+    letter-spacing: 0.01em;
+    font-size: clamp(1.75rem, 4.4vw, 2.75rem);
+    font-weight: 800;
+    line-height: 1.08;
+    text-align: left;
   }
 
   .sale-popup-heading-icon {
-    margin-right: 0.5rem;
-    font-size: 0.78em;
+    margin-right: 0.4rem;
+    font-size: 0.7em;
     vertical-align: baseline;
+  }
+
+  .sale-popup-lead {
+    margin: 0.75rem 0 0;
+    color: #cbd5e1;
+    max-width: 28rem;
+    line-height: 1.45;
+    font-size: 1rem;
+    text-align: left;
   }
 
   .sale-popup-inline-burst {
     position: absolute;
     z-index: 2;
-    font-size: 1.9rem;
-    opacity: 0.95;
+    font-size: 1.45rem;
+    opacity: 0.8;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
     pointer-events: none;
   }
 
   .sale-popup-inline-burst.left {
-    top: 3.15rem;
-    left: 3.75rem;
+    top: 2.4rem;
+    right: 5rem;
+    left: auto;
   }
 
   .sale-popup-inline-burst.mid {
-    top: 6.15rem;
-    left: 47%;
-    transform: translateX(-50%);
+    top: 4rem;
+    right: 2.6rem;
+    left: auto;
+    transform: rotate(12deg);
+  }
+
+  .sale-popup-details {
+    margin-top: 0.35rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+
+  .sale-popup-detail-card {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.72);
+    border-radius: 0.85rem;
+    padding: 0.85rem 1rem;
+    text-align: left;
+  }
+
+  .sale-popup-label {
+    margin: 0;
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #94a3b8;
   }
 
   .sale-popup-text {
-    margin: 0;
-    color: #f3d6b3;
-    font-size: clamp(1.02rem, 1.7vw, 1.95rem);
-    line-height: 1.35;
-    font-weight: 500;
+    margin: 0.35rem 0 0;
+    color: #f8fafc;
+    font-size: clamp(1rem, 1.55vw, 1.22rem);
+    line-height: 1.34;
+    font-weight: 600;
   }
 
   .sale-popup-text strong {
-    color: #ffdcb4;
+    color: #fdba74;
     font-weight: 800;
   }
 
   .sale-popup-subtext {
-    color: #ebd4bc;
-    opacity: 0.95;
-    margin-top: -0.1rem;
-    margin-bottom: 0.35rem;
+    color: #a5b4fc;
+    opacity: 0.92;
+    margin-top: 0;
+    margin-bottom: 0;
+    text-align: left;
+    font-size: 0.86rem;
+  }
+
+  .sale-popup-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
   }
 
   .sale-popup-button {
-    margin-top: 1rem;
+    margin-top: 0;
     width: 100%;
-    max-width: 600px;
+    max-width: none;
     border: none;
-    border-radius: 0.58rem;
-    padding: 0.95rem 1rem;
-    background: #f25b06;
-    color: #fff8ee;
+    border-radius: 0.7rem;
+    padding: 0.9rem 1rem;
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    color: #fff7ed;
     font-weight: 700;
-    font-size: 1.88rem;
-    line-height: 1;
+    font-size: 1rem;
+    line-height: 1.2;
     cursor: pointer;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
+    box-shadow: 0 10px 28px rgba(249, 115, 22, 0.35);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .sale-popup-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 32px rgba(249, 115, 22, 0.4);
+  }
+
+  .sale-popup-button:focus-visible {
+    outline: 2px solid rgba(253, 186, 116, 0.95);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 640px) {
+    .sale-popup-content {
+      padding: 1.35rem;
+      gap: 1rem;
+    }
+
+    .sale-popup-header {
+      flex-direction: column;
+    }
+
+    .sale-popup-details {
+      grid-template-columns: 1fr;
+    }
+
+    .sale-popup-inline-burst.left,
+    .sale-popup-inline-burst.mid {
+      display: none;
+    }
   }
 
   .simulate-sale-button {
@@ -2522,11 +2624,32 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
         <div className="sale-popup-content">
           <span className="sale-popup-inline-burst left" aria-hidden="true">🎉</span>
           <span className="sale-popup-inline-burst mid" aria-hidden="true">🎉</span>
-          <h2 className="sale-popup-heading"><span className="sale-popup-heading-icon">🎉</span> NEW CLIENT ONBOARDING</h2>
-          <p className="sale-popup-text">Payment succeeded for <strong>{saleData.businessName}</strong>.</p>
-          <p className="sale-popup-text">Contact: <strong>{saleData.customerName}</strong></p>
-          <p className="sale-popup-text sale-popup-subtext">Stripe event: simulated.local.preview (test)</p>
-          <button className="sale-popup-button" onClick={onClose}>Awesome — Keep Going</button>
+          <div className="sale-popup-header">
+            <div>
+              <h2 className="sale-popup-heading"><span className="sale-popup-heading-icon">🎉</span>New Client Onboarding</h2>
+              <p className="sale-popup-lead">A new onboarding has been activated and is ready for your team to action.</p>
+            </div>
+            <span className="sale-popup-badge">
+              <span className="sale-popup-badge-dot" aria-hidden="true" />
+              Payment Cleared
+            </span>
+          </div>
+
+          <div className="sale-popup-details">
+            <div className="sale-popup-detail-card">
+              <p className="sale-popup-label">Business</p>
+              <p className="sale-popup-text"><strong>{saleData.businessName}</strong></p>
+            </div>
+            <div className="sale-popup-detail-card">
+              <p className="sale-popup-label">Primary Contact</p>
+              <p className="sale-popup-text"><strong>{saleData.customerName}</strong></p>
+            </div>
+          </div>
+
+          <div className="sale-popup-footer">
+            <p className="sale-popup-text sale-popup-subtext">Stripe event: simulated.local.preview (test)</p>
+            <button className="sale-popup-button" onClick={onClose}>Continue to dashboard</button>
+          </div>
         </div>
       </div>
     </div>
