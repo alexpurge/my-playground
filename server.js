@@ -48,15 +48,15 @@ app.post('/webhook', express.json(), (req, res) => {
       'Unknown Customer';
     const businessName = session?.metadata?.business_name || customerName;
 
-    if (!isNewlyCreatedCustomer) {
-      console.log('⚠️ Strict rule bypassed for testing: Firing pop-up for existing/test customer');
+    if (isNewlyCreatedCustomer) {
+      io.emit('sale_cleared', {
+        customerName,
+        businessName,
+        paymentAmount: amountCents / 100,
+      });
+    } else {
+      console.log('Ignoring successful payment: Customer is not new or ID is missing.');
     }
-
-    io.emit('sale_cleared', {
-      customerName,
-      businessName,
-      paymentAmount: amountCents / 100,
-    });
 
     if (customerId && isNewlyCreatedCustomer) {
       newlyCreatedCustomerIds.delete(customerId);
