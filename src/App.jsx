@@ -278,6 +278,23 @@ const styles = `
     width: 100%;
   }
 
+  .sale-popup-content.simulation .sale-popup-heading {
+    margin-bottom: 2.8rem;
+  }
+
+  .sale-popup-content.simulation .sale-popup-details {
+    margin-bottom: 3.25rem;
+  }
+
+  .sale-popup-content.simulation .sale-popup-confetti-line {
+    margin-top: -0.35rem;
+    margin-bottom: -0.15rem;
+  }
+
+  .sale-popup-content.simulation .sale-popup-contact-line {
+    gap: 0.45rem;
+  }
+
   .sale-popup-text {
     margin: 0;
     color: #c5c5d1;
@@ -2631,11 +2648,11 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
 
         <PopupConfetti />
 
-        <div className="sale-popup-content">
+        <div className={`sale-popup-content ${saleData.isSimulation ? 'simulation' : ''}`}>
           <h2 className="sale-popup-heading"><span className="sale-popup-heading-icon" role="img" aria-label="confetti">🎉</span>NEW CLIENT ONBOARDING<span className="sale-popup-heading-icon" role="img" aria-label="confetti">🎉</span></h2>
 
           <div className="sale-popup-details">
-            <p className="sale-popup-text" style={{ display: 'flex', justifyContent: 'center' }}>
+            <p className="sale-popup-text sale-popup-confetti-line" style={{ display: 'flex', justifyContent: 'center' }}>
               <span role="img" aria-label="confetti">🎉</span>
             </p>
 
@@ -2643,8 +2660,8 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
               Payment succeeded for <strong>{saleData.businessName}</strong>.
             </p>
 
-            <p className="sale-popup-text" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              Contact: <strong>{saleData.customerName}</strong>
+            <p className="sale-popup-text sale-popup-contact-line" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              Contact:{' '}<strong>{saleData.customerName}</strong>
               <span className="sale-popup-pulse five" />
             </p>
           </div>
@@ -2687,8 +2704,8 @@ export default function App() {
             Accept: 'audio/mpeg',
           },
           body: JSON.stringify({
-            text: 'Short celebratory cash register cha-ching sound effect.',
-            duration_seconds: 2,
+            text: 'Bright, clean cash register cha-ching with coin sparkle. Avoid horn, buzz, buzzer, alarm, siren, or synthetic beeps.',
+            duration_seconds: 1.5,
             prompt_influence: 1,
           }),
         });
@@ -2726,6 +2743,7 @@ export default function App() {
       customerName: payload?.customerName || 'Test Customer',
       businessName: payload?.businessName || payload?.customerName || 'Test Business',
       paymentAmount: payload?.paymentAmount || 0,
+      isSimulation: Boolean(payload?.isSimulation),
     });
 
     if (salePopupTimeoutRef.current) {
@@ -2812,8 +2830,8 @@ export default function App() {
              notify={notify}
              toggleTheme={toggleTheme}
              theme={theme}
-             onSimulateSale={() => triggerSalePopup({ customerName: 'Test Customer', businessName: 'Demo Business', paymentAmount: 497 })}
-          />
+             onSimulateSale={() => triggerSalePopup({ customerName: 'Test Customer', businessName: 'Demo Business', paymentAmount: 497, isSimulation: true })}
+           />
         )}
       </div>
     </>
