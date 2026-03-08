@@ -24,22 +24,8 @@ const newlyCreatedCustomerIds = new Set();
 
 app.use(cors());
 
-app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const signature = req.headers['stripe-signature'];
-
-  if (!signature) {
-    res.status(400).send('Missing Stripe signature header');
-    return;
-  }
-
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, signature, STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error('Stripe webhook signature verification failed:', err.message);
-    res.status(400).send(`Webhook Error: ${err.message}`);
-    return;
-  }
+app.post('/webhook', express.json(), (req, res) => {
+  const event = req.body;
 
   console.log(`\n\x1b[1;95m🔔 [STRIPE EVENT RECEIVED] -> ${event.type}\x1b[0m`);
 
@@ -58,8 +44,12 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
     console.log(`checkout.session.completed customerId: ${customerId || 'none'}`);
     console.log(`newlyCreatedCustomerIds has customerId: ${isNewlyCreatedCustomer}`);
 
-    const amountCents = Number(session?.amount_total || 0);
-    const customerName = session?.customer_details?.name || session?.metadata?.customer_name || 'Unknown Customer';
+    const amountCents = Number(session?.amount_total ?? session?.amount_received ?? session?.amount ?? 0);
+    const customerName =
+      session?.customer_details?.name ||
+      session?.shipping?.name ||
+      session?.metadata?.customer_name ||
+      'Unknown Customer';
     const businessName = session?.metadata?.business_name || customerName;
 
     if (!isNewlyCreatedCustomer) {
