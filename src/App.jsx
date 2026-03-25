@@ -6,7 +6,6 @@ import { io } from 'socket.io-client';
 // -----------------------------------------------------------------------------
 const GOOGLE_CLIENT_ID = "114822666541-8ja92po8tuk4en1k8lr0ojoe4dm1r4u8.apps.googleusercontent.com"; 
 const AIRCALL_API_ID = "b4acecdc63a5a18d9145c38cdd0f5f04";
-const AIRCALL_WEBHOOK_URL = "https://dashboard.purgedigital.au/api/aircall/webhook";
 
 // --- ELEVENLABS CONFIGURATION (STRICT RULES) ---
 const ELEVENLABS_VOICE_ID = "IKne3meq5aSn9XLyUdCD"; // Charlie
@@ -60,6 +59,7 @@ const SunIcon = (props) => <IconBase {...props}><circle cx="12" cy="12" r="4" />
 const MoonIcon = (props) => <IconBase {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></IconBase>;
 const AlertTriangleIcon = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></IconBase>;
 const ExternalLinkIcon = (props) => <IconBase {...props}><path d="M14 3h7v7" /><path d="M10 14 21 3" /><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" /></IconBase>;
+const PhoneIcon = (props) => <IconBase {...props}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></IconBase>;
 
 /**
  * CUSTOM CSS STYLES
@@ -149,6 +149,39 @@ const styles = `
   }
   .toast.error { border-left-color: #ef4444; }
   .toast.success { border-left-color: #22c55e; }
+
+  .service-warnings-banner {
+    position: fixed; top: 1rem; right: 1rem; z-index: 9998;
+    display: flex; flex-direction: column; gap: 0.4rem;
+    max-width: 340px;
+  }
+  .service-warning {
+    display: flex; align-items: center; gap: 0.6rem;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-left: 4px solid #ef4444;
+    color: var(--text-primary);
+    padding: 0.6rem 0.8rem;
+    border-radius: 0.4rem;
+    font-size: 0.78rem;
+    line-height: 1.3;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .service-warning .warning-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ef4444; flex-shrink: 0;
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .service-warning button {
+    background: none; border: none; color: var(--text-primary);
+    cursor: pointer; opacity: 0.5; margin-left: auto; flex-shrink: 0;
+  }
+  .service-warning button:hover { opacity: 1; }
 
   .sale-popup-overlay {
     position: fixed;
@@ -503,7 +536,7 @@ const styles = `
     text-align: center;
     box-shadow: 0 0 50px -10px rgba(234, 88, 12, 0.15);
     display: flex; flex-direction: column; align-items: center;
-    gap: 1.5rem; max-width: 400px; width: 90%;
+    gap: 1.5rem; max-width: 460px; width: 90%;
   }
 
   .loading-pulse { animation: pulse-orange 2s infinite; }
@@ -512,6 +545,46 @@ const styles = `
     0% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.7); }
     70% { box-shadow: 0 0 0 15px rgba(234, 88, 12, 0); }
     100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0); }
+  }
+
+  .loading-steps {
+    width: 100%; display: flex; flex-direction: column; gap: 0;
+    margin-top: 0.5rem;
+  }
+  .loading-step {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.7rem 1rem; border-radius: 0.5rem;
+    transition: all 0.4s ease;
+    opacity: 0; max-height: 0; overflow: hidden;
+    margin: 0;
+  }
+  .loading-step.visible {
+    opacity: 1; max-height: 60px; margin-bottom: 0.35rem;
+  }
+  .loading-step-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: background 0.3s ease;
+  }
+  .loading-step.pending .loading-step-icon { background: #333; }
+  .loading-step.active .loading-step-icon { background: rgba(234, 88, 12, 0.25); }
+  .loading-step.done .loading-step-icon { background: rgba(34, 197, 94, 0.2); }
+  .loading-step.failed .loading-step-icon { background: rgba(239, 68, 68, 0.2); }
+  .loading-step.skipped .loading-step-icon { background: rgba(250, 204, 21, 0.15); }
+
+  .loading-step-text {
+    display: flex; flex-direction: column; align-items: flex-start; text-align: left;
+  }
+  .loading-step-label {
+    font-size: 0.85rem; font-weight: 600; color: var(--text-primary);
+    transition: color 0.3s ease;
+  }
+  .loading-step.done .loading-step-label { color: #22c55e; }
+  .loading-step.failed .loading-step-label { color: #ef4444; }
+  .loading-step.skipped .loading-step-label { color: #facc15; }
+  .loading-step-detail {
+    font-size: 0.72rem; color: var(--text-secondary);
+    margin-top: 0.1rem; font-family: monospace;
   }
 
   /* Green Pulse for Live Dot */
@@ -841,7 +914,41 @@ const styles = `
     box-shadow: 0 22px 36px -22px rgba(234, 88, 12, 0.34), 0 8px 20px -16px rgba(15, 23, 42, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.16);
   }
 
-  .booking-meta { 
+  /* DIAL ICON TOOLTIP */
+  .dial-icon-wrapper { position: relative; }
+  .dial-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.92);
+    color: #e5e5e5;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    padding: 0.65rem 1rem;
+    border-radius: 0.4rem;
+    min-width: 200px;
+    max-width: 300px;
+    width: max-content;
+    white-space: normal;
+    word-wrap: break-word;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .dial-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.92);
+  }
+  .dial-icon-wrapper:hover .dial-tooltip { display: block; }
+
+  .booking-meta {
     display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; 
   }
   .booking-time { 
@@ -975,12 +1082,40 @@ const styles = `
     color: white;
   }
 
-  .agent-info { width: 14.4rem; flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; gap: 0.35rem; }
-  .agent-name { 
-    font-size: 2rem; font-weight: 900; /* EXTRA BOLD */
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-    color: var(--text-primary); 
-    text-transform: uppercase; /* ALL CAPS */
+  .agent-info { width: 14.4rem; flex-shrink: 0; overflow: visible; display: flex; flex-direction: column; gap: 0.35rem; padding-left: 0.4rem; margin-left: -0.4rem; }
+  .agent-name {
+    font-size: 2rem; font-weight: 900;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--text-primary);
+    text-transform: uppercase;
+  }
+
+  .agent-name-editable {
+    cursor: text;
+    border-radius: 0.3rem;
+    padding: 0.1rem 0.45rem;
+    margin: -0.1rem -0.45rem;
+    border: 1.5px solid transparent;
+    transition: border-color 0.15s ease;
+  }
+  .agent-name-editable.agent-name-hover {
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  input.agent-name-input {
+    font-size: 2rem; font-weight: 900;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    background: transparent;
+    border: 1.5px solid #f97316;
+    border-radius: 0.3rem;
+    padding: 0.1rem 0.45rem;
+    margin: -0.1rem -0.45rem;
+    outline: none;
+    width: 100%;
+    font-family: inherit;
+    line-height: inherit;
+    box-sizing: content-box;
   }
 
   .agent-status {
@@ -1189,6 +1324,7 @@ const styles = `
     .rank-badge { width: 3rem; height: 3rem; font-size: 1.25rem; }
     .agent-info { width: 8rem; gap: 0.2rem; }
     .agent-name { font-size: 1.2rem; }
+    input.agent-name-input { font-size: 1.2rem; }
 
     .status-dot { width: 10px; height: 10px; }
     .score-box { width: 5rem; padding-left: 0.5rem; }
@@ -1305,128 +1441,6 @@ const isActiveCall = (call) => {
   return false;
 };
 
-const parseInCallSignalFromWebhookEvent = (payload) => {
-  if (!payload || typeof payload !== 'object') return null;
-
-  const lower = (value) => String(value || '').toLowerCase();
-  const eventType = lower(payload.event || payload.event_name || payload.type || payload.name);
-  const eventStatus = lower(payload.status || payload.state);
-  const call = payload.call || payload.data?.call || payload.data;
-
-  if (call && isActiveCall(call)) return true;
-
-  if (eventType.includes('call.ended') || eventType.includes('call.hungup') || eventType.includes('call.hangup')) return false;
-  if (
-    eventType.includes('call.answered') ||
-    eventType.includes('call.created') ||
-    eventType.includes('call.initiated') ||
-    eventType.includes('call.started') ||
-    eventType.includes('call.connected') ||
-    eventType.includes('call.dial') ||
-    eventType.includes('dialing') ||
-    eventType.includes('call.ring')
-  ) return true;
-
-  if (eventStatus.includes('ended') || eventStatus.includes('hangup')) return false;
-  if (
-    eventStatus.includes('answered') ||
-    eventStatus.includes('active') ||
-    eventStatus.includes('in_call') ||
-    eventStatus.includes('dial') ||
-    eventStatus.includes('ring')
-  ) return true;
-
-  return null;
-};
-
-const toWebSocketUrl = (url) => {
-  try {
-    const parsed = new URL(url);
-    parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-};
-
-const extractStatusFromWebhookEvent = (payload) => {
-  if (!payload || typeof payload !== 'object') return null;
-
-  const rootStatus = payload.status || payload.availability_status || payload.presence || payload.state;
-  if (rootStatus) return rootStatus;
-
-  const data = payload.data;
-  if (data && typeof data === 'object') {
-    const directDataStatus = data.status || data.availability_status || data.presence || data.state;
-    if (directDataStatus) return directDataStatus;
-
-    const user = data.user;
-    if (user && typeof user === 'object') {
-      return user.status || user.availability_status || user.presence || user.state || null;
-    }
-  }
-
-  const user = payload.user;
-  if (user && typeof user === 'object') {
-    return user.status || user.availability_status || user.presence || user.state || null;
-  }
-
-  return null;
-};
-
-const extractUserIdFromWebhookEvent = (payload) => {
-  if (!payload || typeof payload !== 'object') return null;
-  const rootId = payload.user_id || payload.userId;
-  if (rootId !== undefined && rootId !== null) return rootId;
-
-  const data = payload.data;
-  if (data && typeof data === 'object') {
-    const dataId = data.user_id || data.userId;
-    if (dataId !== undefined && dataId !== null) return dataId;
-
-    const user = data.user;
-    if (user && typeof user === 'object' && user.id !== undefined && user.id !== null) {
-      return user.id;
-    }
-  }
-
-  const user = payload.user;
-  if (user && typeof user === 'object' && user.id !== undefined && user.id !== null) {
-    return user.id;
-  }
-
-  return null;
-};
-
-const extractUserIdsFromWebhookEvent = (payload) => {
-  if (!payload || typeof payload !== 'object') return [];
-
-  const ids = new Set();
-  const pushId = (value) => {
-    if (value === undefined || value === null) return;
-    const id = String(value).trim();
-    if (!id) return;
-    ids.add(id.toLowerCase());
-  };
-
-  pushId(extractUserIdFromWebhookEvent(payload));
-
-  const call = payload.call || payload.data?.call || payload.data;
-  if (call && typeof call === 'object') {
-    pushId(call.user_id);
-    pushId(call.assigned_to?.id);
-    pushId(call.user?.id);
-
-    if (Array.isArray(call.users)) {
-      call.users.forEach((user) => {
-        if (user && typeof user === 'object') pushId(user.id);
-        else pushId(user);
-      });
-    }
-  }
-
-  return Array.from(ids);
-};
 
 const resolveAgentStatus = (agent, statusMap) => {
   if (agent.isTarget) return null;
@@ -1508,8 +1522,42 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState(null);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const [serverStatus, setServerStatus] = useState('checking'); // 'checking' | 'online' | 'offline'
+  const [stripeCLIStatus, setStripeCLIStatus] = useState('checking'); // 'checking' | 'active' | 'inactive'
   const tokenClient = useRef(null);
-  const credentialsRef = useRef({ token: '', key: '', elKey: '', stripeKey: '' }); // Store parsed creds here
+  const credentialsRef = useRef({ token: '', key: '', elKey: '', stripeKey: '', anthropicKey: '' });
+
+  // Poll server health + Stripe CLI status
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const resp = await fetch('http://localhost:8787/health', { signal: AbortSignal.timeout(3000) });
+        if (cancelled) return;
+        if (resp.ok) {
+          setServerStatus('online');
+          const data = await resp.json();
+          // If a webhook was received in the last 5 minutes, CLI is active
+          if (data.lastWebhookReceivedAt && (Date.now() - data.lastWebhookReceivedAt) < 300000) {
+            setStripeCLIStatus('active');
+          } else {
+            setStripeCLIStatus('inactive');
+          }
+        } else {
+          setServerStatus('offline');
+          setStripeCLIStatus('inactive');
+        }
+      } catch {
+        if (!cancelled) {
+          setServerStatus('offline');
+          setStripeCLIStatus('inactive');
+        }
+      }
+    };
+    check();
+    const interval = setInterval(check, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   // Load Google Scripts on Mount
   useEffect(() => {
@@ -1534,12 +1582,13 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
           }
           // Success! Pass all credentials up to App using values stored in Ref
           onConnect(
-            AIRCALL_API_ID, 
-            credentialsRef.current.token, 
-            credentialsRef.current.key, 
+            AIRCALL_API_ID,
+            credentialsRef.current.token,
+            credentialsRef.current.key,
             resp.access_token,
             credentialsRef.current.elKey,
-            credentialsRef.current.stripeKey
+            credentialsRef.current.stripeKey,
+            credentialsRef.current.anthropicKey
           );
         },
       });
@@ -1555,9 +1604,9 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
 
     const lines = inputText.trim().split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-    // Validate we have at least 4 lines (Token + Google Key + ElevenLabs Key + Stripe Live Secret Key)
-    if (lines.length < 4) {
-      const msg = "Please paste credentials:\nLine 1: Aircall API Token\nLine 2: Google API Key\nLine 3: ElevenLabs API Key\nLine 4: Stripe Live Secret Key";
+    // Validate we have at least 5 lines
+    if (lines.length < 5) {
+      const msg = "Please paste credentials:\nLine 1: Aircall API Token\nLine 2: Google API Key\nLine 3: ElevenLabs API Key\nLine 4: Stripe Live Secret Key\nLine 5: Anthropic API Key";
       setError(msg);
       notify("Missing Credentials. Check input.", 'error');
       return;
@@ -1571,7 +1620,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
     }
 
     // Store for callback
-    credentialsRef.current = { token: lines[0], key: lines[1], elKey: lines[2], stripeKey: lines[3] };
+    credentialsRef.current = { token: lines[0], key: lines[1], elKey: lines[2], stripeKey: lines[3], anthropicKey: lines[4] };
 
     // Trigger Google Auth Popup
     try {
@@ -1588,7 +1637,49 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
           <img src="https://i.imgur.com/QjjDjuU.png" alt="Purge Digital" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '0.75rem' }} />
         </div>
         <h2 className="text-center" style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Sales Dashboard</h2>
-        <p className="text-center" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '2rem' }}>Authenticate to Begin</p>
+        <p className="text-center" style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1.25rem' }}>Authenticate to Begin</p>
+
+        {/* Service Status Indicators */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.75rem',
+            padding: '0.625rem 0.875rem', borderRadius: '0.5rem',
+            backgroundColor: serverStatus === 'online' ? 'rgba(34, 197, 94, 0.08)' : serverStatus === 'offline' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(161, 161, 170, 0.08)',
+            border: `1px solid ${serverStatus === 'online' ? 'rgba(34, 197, 94, 0.2)' : serverStatus === 'offline' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(161, 161, 170, 0.2)'}`,
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+              backgroundColor: serverStatus === 'online' ? '#22c55e' : serverStatus === 'offline' ? '#ef4444' : '#a1a1aa',
+              boxShadow: serverStatus === 'online' ? '0 0 6px rgba(34, 197, 94, 0.5)' : serverStatus === 'offline' ? '0 0 6px rgba(239, 68, 68, 0.5)' : 'none',
+            }} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>Express Server</span>
+            <span style={{
+              fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
+              color: serverStatus === 'online' ? '#22c55e' : serverStatus === 'offline' ? '#ef4444' : 'var(--text-secondary)',
+            }}>
+              {serverStatus === 'checking' ? 'Checking...' : serverStatus === 'online' ? 'Online' : 'Offline'}
+            </span>
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.75rem',
+            padding: '0.625rem 0.875rem', borderRadius: '0.5rem',
+            backgroundColor: stripeCLIStatus === 'active' ? 'rgba(34, 197, 94, 0.08)' : stripeCLIStatus === 'inactive' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(161, 161, 170, 0.08)',
+            border: `1px solid ${stripeCLIStatus === 'active' ? 'rgba(34, 197, 94, 0.2)' : stripeCLIStatus === 'inactive' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(161, 161, 170, 0.2)'}`,
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+              backgroundColor: stripeCLIStatus === 'active' ? '#22c55e' : stripeCLIStatus === 'inactive' ? '#ef4444' : '#a1a1aa',
+              boxShadow: stripeCLIStatus === 'active' ? '0 0 6px rgba(34, 197, 94, 0.5)' : stripeCLIStatus === 'inactive' ? '0 0 6px rgba(239, 68, 68, 0.5)' : 'none',
+            }} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>Stripe CLI</span>
+            <span style={{
+              fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
+              color: stripeCLIStatus === 'active' ? '#22c55e' : stripeCLIStatus === 'inactive' ? '#ef4444' : 'var(--text-secondary)',
+            }}>
+              {stripeCLIStatus === 'checking' ? 'Checking...' : stripeCLIStatus === 'active' ? 'Active' : 'No Events'}
+            </span>
+          </div>
+        </div>
 
         {error && (
           <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '0.5rem', display: 'flex', gap: '0.75rem' }}>
@@ -1608,7 +1699,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
               value={inputText} 
               onChange={(e) => setInputText(e.target.value)} 
               className="input-field" 
-              placeholder={`Aircall API Token\nGoogle API Key\nElevenLabs API Key\nStripe Live Secret Key`}
+              placeholder={`Aircall API Token\nGoogle API Key\nElevenLabs API Key\nStripe Live Secret Key\nAnthropic API Key`}
               style={{ height: '8rem', resize: 'none', fontFamily: 'monospace', lineHeight: '1.5' }}
             />
           </div>
@@ -1628,7 +1719,7 @@ const UnifiedLoginScreen = ({ onConnect, onDemo, notify }) => {
   );
 };
 
-const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap, hasLeadChange }) => {
+const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap, hasLeadChange, nickname, onSaveNickname }) => {
   const isTarget = agent.isTarget;
   const isWinner = rank === 1 && !isTarget;
   let rowClass = 'agent-row';
@@ -1643,8 +1734,38 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap, hasLeadChange }) 
   const scorePercent = maxScore > 0 ? (Math.sqrt(totalScore) / Math.sqrt(maxScore)) * 100 : 0;
   const dialShare = totalScore > 0 ? (dialScore / totalScore) * 100 : 0;
   const talkShare = totalScore > 0 ? (talkScore / totalScore) * 100 : 0;
-  const firstName = agent.name.split(' ')[0];
+  const defaultName = agent.name.split(' ')[0];
+  const displayName = nickname || defaultName;
   const statusMeta = resolveAgentStatus(agent, statusMap);
+
+  // Inline editable name state
+  const [editing, setEditing] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [editValue, setEditValue] = useState(displayName);
+  const inputRef = useRef(null);
+  const committedRef = useRef(false);
+
+  useEffect(() => { setEditValue(displayName); }, [displayName]);
+  useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); committedRef.current = false; } }, [editing]);
+
+  const commitEdit = () => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    const trimmed = editValue.trim();
+    setEditing(false);
+    setHovered(false);
+    if (!isTarget && trimmed) {
+      onSaveNickname(agent.id, trimmed);
+    } else {
+      setEditValue(displayName);
+    }
+  };
+
+  const cancelEdit = () => {
+    committedRef.current = true;
+    setEditing(false);
+    setEditValue(displayName);
+  };
 
   return (
     <div className={rowClass} data-flip-key={String(agent.id)}>
@@ -1652,7 +1773,28 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap, hasLeadChange }) 
         {isWinner ? <TrophyIcon size={30} fill="currentColor" /> : (isTarget ? <ZapIcon size={20} fill="currentColor" /> : rank)}
       </div>
       <div className="agent-info">
-        <div className="agent-name">{firstName}</div>
+        {isTarget ? (
+          <div className="agent-name">{displayName}</div>
+        ) : editing ? (
+          <input
+            ref={inputRef}
+            className="agent-name agent-name-input"
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); }}
+            onBlur={commitEdit}
+            maxLength={24}
+          />
+        ) : (
+          <div
+            className={`agent-name agent-name-editable${hovered ? ' agent-name-hover' : ''}`}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onClick={() => { setEditing(true); setEditValue(displayName); }}
+          >
+            {displayName}
+          </div>
+        )}
         {isTarget && <span style={{ fontSize: '1rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#16a34a' }}>Goal</span>}
         {!isTarget && statusMeta && (
           <div className={`agent-status ${statusMeta.className}`}>
@@ -1681,80 +1823,127 @@ const AgentRow = ({ rank, agent, maxDials, maxTalk, statusMap, hasLeadChange }) 
 };
 
 // ADDED: Cancel button support
-const LoadingScreen = ({ status, error, onRetry, onCancel }) => (
-  <div className="loading-overlay">
-    <div className="loading-card loading-pulse" style={error ? { animation: 'none', borderColor: '#ef4444' } : {}}>
-      <div className="icon-box" style={{ marginBottom: '1.5rem', background: 'transparent', boxShadow: 'none' }}>
-        {error ? <AlertCircleIcon size={64} color="#ef4444" /> : <LoaderIcon className="animate-spin" size={64} color="#ea580c" />}
-      </div>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>
-        {error ? 'Sync Failed' : 'Loading Data'}
-      </h2>
-      <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginTop: '0.5rem' }}>
-        {error ? 'Could not retrieve data.' : 'Establishing connections...'}
-      </p>
-      
-      {error ? (
-        <div style={{ width: '100%', marginTop: '1rem' }}>
-           <p style={{ color: '#fca5a5', fontSize: '0.85rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>{error}</p>
-           <button onClick={onRetry} className="btn-primary" style={{ marginTop: 0 }}>
-             <RefreshCwIcon size={16} /> Retry Connection
-           </button>
-        </div>
-      ) : (
-        <div style={{ marginTop: '2rem', padding: '0.75rem 1.5rem', background: '#262626', borderRadius: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <DatabaseIcon size={16} color="#f97316" />
-          <span style={{ fontSize: '0.85rem', color: '#d4d4d4', fontFamily: 'monospace' }}>
-            STATUS: {status || 'Initializing handshake...'}
-          </span>
-        </div>
-      )}
+const LOADING_STEP_ICONS = {
+  pending: (sz) => <div style={{ width: sz, height: sz, borderRadius: '50%', border: '2px solid #555' }} />,
+  active: (sz) => <LoaderIcon size={sz} color="#ea580c" />,
+  done: (sz) => <CheckCircleIcon size={sz} color="#22c55e" />,
+  failed: (sz) => <AlertCircleIcon size={sz} color="#ef4444" />,
+  skipped: (sz) => <AlertCircleIcon size={sz} color="#facc15" />,
+};
 
-      {/* ADDED: Cancel Button */}
-      <button 
-        onClick={onCancel} 
-        style={{ 
-          marginTop: '2rem', 
-          background: 'transparent', 
-          border: 'none', 
-          color: 'var(--text-secondary)', 
-          fontSize: '0.875rem', 
-          cursor: 'pointer',
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '0.5rem' 
-        }}
-      >
-        <XCircleIcon size={16} /> Cancel
-      </button>
+const LoadingScreen = ({ steps, onRetry, onCancel }) => {
+  const hasError = steps.some((s) => s.status === 'failed');
+  const activeStep = steps.find((s) => s.status === 'active');
+  const allDone = steps.every((s) => s.status === 'done' || s.status === 'skipped');
+  const heading = hasError ? 'Connection Issue' : allDone ? 'Finalizing...' : (activeStep?.heading || 'Loading Data');
+  const subtitle = hasError ? 'Some services could not connect.' : allDone ? 'Preparing dashboard...' : (activeStep?.detail || 'Establishing connections...');
+
+  return (
+    <div className="loading-overlay">
+      <div className="loading-card loading-pulse" style={hasError ? { animation: 'none', borderColor: '#ef4444' } : {}}>
+        <div className="icon-box" style={{ marginBottom: '0.5rem', background: 'transparent', boxShadow: 'none' }}>
+          {hasError ? <AlertCircleIcon size={56} color="#ef4444" /> : <LoaderIcon className="animate-spin" size={56} color="#ea580c" />}
+        </div>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>
+          {heading}
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+          {subtitle}
+        </p>
+
+        <div className="loading-steps">
+          {steps.map((step) => (
+            <div key={step.id} className={`loading-step ${step.status} visible`}>
+              <div className="loading-step-icon">
+                {LOADING_STEP_ICONS[step.status]?.(16) || LOADING_STEP_ICONS.pending(16)}
+              </div>
+              <div className="loading-step-text">
+                <span className="loading-step-label">{step.label}</span>
+                {step.detail && <span className="loading-step-detail">{step.detail}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {hasError && (
+          <button onClick={onRetry} className="btn-primary" style={{ marginTop: '0.5rem' }}>
+            <RefreshCwIcon size={16} /> Retry Connection
+          </button>
+        )}
+
+        <button
+          onClick={onCancel}
+          style={{
+            marginTop: '1rem', background: 'transparent', border: 'none',
+            color: 'var(--text-secondary)', fontSize: '0.875rem', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+          }}
+        >
+          <XCircleIcon size={16} /> Cancel
+        </button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // SCREEN 3: DASHBOARD (Data Loading -> Display)
 const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onLogout, notify, toggleTheme, theme, onSimulateSale }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [fetchStatus, setFetchStatus] = useState('Initializing...');
-  const [errorState, setErrorState] = useState(null); 
+  const [errorState, setErrorState] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   // Added refresh trigger state
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const manualRefresh = useRef(false);
 
+  // Step-by-step loading status for each service
+  const [loadingSteps, setLoadingSteps] = useState([
+    { id: 'aircall', label: 'AirCall Sync', heading: 'Syncing AirCall', detail: 'Fetching agents & call data...', status: 'pending' },
+    { id: 'calendar', label: 'Google Calendar', heading: 'Loading Calendar', detail: 'Fetching today\'s bookings...', status: 'pending' },
+  ]);
+
+  const updateStep = (id, updates) => {
+    setLoadingSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+  };
+
   // New Booking State
   const [bookings, setBookings] = useState([]);
   const [agentStatuses, setAgentStatuses] = useState({});
-  
+  const [serviceWarnings, setServiceWarnings] = useState([]);
+
+  // Agent Nicknames
+  const [agentNicknames, setAgentNicknames] = useState({});
+  useEffect(() => {
+    fetch('http://localhost:8787/api/agent-nicknames')
+      .then(r => r.ok ? r.json() : {})
+      .then(data => setAgentNicknames(data))
+      .catch(() => {});
+  }, []);
+
+  const saveAgentNickname = (agentId, newName) => {
+    // Update state immediately so UI reflects the change
+    setAgentNicknames(prev => ({ ...prev, [String(agentId)]: newName }));
+    // Persist to server in background
+    fetch(`http://localhost:8787/api/agent-nicknames/${agentId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    }).catch(() => {});
+  };
+
   // ElevenLabs State
   const announcedEventIds = useRef(new Set());
 
-  const callsCache = useRef(new Map()); 
+  const callsCache = useRef(new Map());
+  // Map<bookingId, Array<{ callId, active, summary }>>
+  // summary: null = not fetched yet, 'loading' = in progress, string = result
+  const dialedBookingsRef = useRef(new Map());
+  const transcriptCacheRef = useRef(new Map()); // Map<callId, summary string>
   const syncInFlight = useRef(false);
   const latestSyncRequestId = useRef(0);
   const latestAppliedSyncId = useRef(0);
+
   const latestCallTimestampSeen = useRef(0);
-  const websocketRef = useRef(null);
   const previousLeaderRef = useRef(null);
   const [leaderChangedAt, setLeaderChangedAt] = useState(0);
 
@@ -1806,6 +1995,167 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     return rawName.charAt(0).toUpperCase() + rawName.slice(1);
   };
 
+  // --- HELPER: EXTRACT PHONE NUMBER FROM BOOKING TITLE ---
+  const extractPhoneFromBooking = (summary) => {
+    if (!summary) return null;
+    const parts = summary.split('-').map(p => p.trim());
+    for (const part of parts) {
+      const digits = part.replace(/[\s\-()]/g, '');
+      // Match Australian mobile: 04xx, +614xx, 614xx
+      if (/^(\+?61|0)4\d{8}$/.test(digits)) return digits;
+      // Also match if it's just digits that look like a phone number (8+ digits)
+      if (/^\+?\d{8,}$/.test(digits)) return digits;
+    }
+    return null;
+  };
+
+  // --- CONVERT TO E.164 FORMAT (AirCall requires +countrycode + number) ---
+  const toE164 = (phone) => {
+    if (!phone) return '';
+    let d = phone.replace(/[\s\-()]/g, '');
+    // Already E.164
+    if (d.startsWith('+')) return d;
+    // Australian local: 04xx -> +614xx
+    if (d.startsWith('0')) return '+61' + d.slice(1);
+    // Already has country code but no +
+    if (d.startsWith('61')) return '+' + d;
+    // Fallback: prepend +
+    return '+' + d;
+  };
+
+  // --- FETCH TRANSCRIPT FROM AIRCALL + SUMMARIZE VIA SERVER ---
+  const fetchTranscriptSummary = async (callId, aircallHeaders) => {
+    // Check cache first
+    if (transcriptCacheRef.current.has(callId)) {
+      return transcriptCacheRef.current.get(callId);
+    }
+
+    try {
+      // Fetch individual call detail from AirCall for transcript
+      const callRes = await fetch(`https://api.aircall.io/v1/calls/${callId}`, { headers: aircallHeaders });
+      if (!callRes.ok) return null;
+      const callData = await callRes.json();
+      const call = callData.call;
+
+      // Call still active
+      if (!call.ended_at) {
+        return '__active__';
+      }
+
+      // Check for transcript in comments/tags or use recording transcript
+      // AirCall stores transcripts in the call's `transcription` or via insight cards
+      const transcript = call.transcription?.text || call.transcription || null;
+
+      if (!transcript) {
+        const summary = 'No transcript recorded';
+        transcriptCacheRef.current.set(callId, summary);
+        return summary;
+      }
+
+      // Send to server for Haiku summarization
+      const sumRes = await fetch('http://localhost:8787/api/summarize-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: typeof transcript === 'string' ? transcript : JSON.stringify(transcript) }),
+      });
+
+      if (sumRes.ok) {
+        const { summary } = await sumRes.json();
+        transcriptCacheRef.current.set(callId, summary);
+        return summary;
+      }
+    } catch {
+      // Silently fail
+    }
+    return null;
+  };
+
+  // --- DIAL CHECK: Every 30s, match calls from cache to booking phone numbers ---
+  // Zero API calls — uses callsCache populated by syncCalls.
+  useEffect(() => {
+    if (!bookings.length || apiId === 'demo') return;
+
+    const aircallHeaders = { 'Authorization': 'Basic ' + btoa(`${apiId}:${apiToken}`), 'Content-Type': 'application/json' };
+
+    const getCallOutcome = (call) => {
+      if (!call.ended_at) return 'in_progress';
+      if (call.answered_at && Number(call.answered_at) > 0) return 'answered';
+      if (call.voicemail) return 'voicemail';
+      return 'no_answer';
+    };
+
+    const outcomeLabel = (outcome) => {
+      if (outcome === 'in_progress') return 'Call in progress';
+      if (outcome === 'answered') return 'Answered';
+      if (outcome === 'voicemail') return 'Went to voicemail';
+      return 'No answer';
+    };
+
+    const phoneDigits = (phone) => (phone || '').replace(/[^\d]/g, '');
+
+    const checkDials = () => {
+      const nowTime = Date.now();
+      const dialData = new Map(dialedBookingsRef.current);
+
+      for (const booking of bookings) {
+        if (!booking.start?.dateTime) continue;
+        const eventTime = new Date(booking.start.dateTime).getTime();
+        if (nowTime < eventTime) continue;
+
+        const rawPhone = extractPhoneFromBooking(booking.summary);
+        if (!rawPhone) continue;
+        const normalizedDigits = phoneDigits(toE164(rawPhone));
+
+        const callMap = new Map();
+        const fromTs = Math.floor(eventTime / 1000);
+
+        // Match calls from cache only — no API calls
+        callsCache.current.forEach((call) => {
+          if (call.direction !== 'outbound') return;
+          const callPhone = phoneDigits(call.raw_digits || call.number?.digits || '');
+          if (!callPhone || !normalizedDigits) return;
+          if (!callPhone.endsWith(normalizedDigits.slice(-9)) && !normalizedDigits.endsWith(callPhone.slice(-9))) return;
+          const callTime = Number(call.started_at || call.created_at || 0);
+          if (callTime >= fromTs) {
+            callMap.set(call.id, call);
+          }
+        });
+
+        const callEntries = Array.from(callMap.values())
+          .sort((a, b) => (Number(a.started_at || a.created_at || 0)) - (Number(b.started_at || b.created_at || 0)))
+          .map(c => {
+            const outcome = getCallOutcome(c);
+            return {
+              callId: c.id,
+              active: outcome === 'in_progress',
+              outcome,
+              outcomeLabel: outcomeLabel(outcome),
+              summary: transcriptCacheRef.current.get(c.id) || null,
+            };
+          });
+
+        dialData.set(booking.id, callEntries);
+
+        for (const entry of callEntries) {
+          if (!entry.active && !entry.summary) {
+            fetchTranscriptSummary(entry.callId, aircallHeaders).then(summary => {
+              if (summary) {
+                entry.summary = summary;
+                transcriptCacheRef.current.set(entry.callId, summary);
+              }
+            });
+          }
+        }
+      }
+
+      dialedBookingsRef.current = dialData;
+    };
+
+    checkDials();
+    const interval = setInterval(checkDials, 30000);
+    return () => clearInterval(interval);
+  }, [bookings, apiId, apiToken]);
+
   // --- ELEVENLABS ANNOUNCEMENT FUNCTION ---
   // UPDATED: Now uses passed 'elevenLabsApiKey' prop
   const playAnnouncement = async (text) => {
@@ -1852,52 +2202,62 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     return [...new Set(names)];
   };
 
-  const fetchPage = async (page, fromDate, headers, baseUrl) => {
-    const url = `${baseUrl}/calls?from=${fromDate}&order=desc&per_page=50&page=${page}`;
-    try {
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-         if (res.status === 429) {
-           console.warn("Rate limit hit");
-           notify("Aircall Rate Limit Reached.", 'error');
-           return null;
-         }
-         throw new Error(`API Error ${res.status}`);
-      }
-      return await res.json();
-    } catch (err) {
-      throw err;
-    }
-  };
 
   // LOAD GAPI (Authorization Client)
   useEffect(() => {
     if(apiId === 'demo') return;
 
+    updateStep('calendar', { status: 'active', detail: 'Loading Google API...' });
+
     const loadGapi = () => {
       const script = document.createElement('script');
       script.src = 'https://apis.google.com/js/api.js';
       script.onload = () => gapi.load('client', initGapiClient);
+      script.onerror = () => {
+        updateStep('calendar', { status: 'failed', detail: 'Could not load Google API script' });
+        checkAllStepsDone();
+      };
       document.body.appendChild(script);
     };
 
     const initGapiClient = async () => {
-      await gapi.client.init({
-        apiKey: apiKey,
-        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
-      });
-      // GAPI is ready, and we have token from Login screen, so set it
-      if (googleToken) {
-          gapi.client.setToken({ access_token: googleToken });
-          listUpcomingEvents();
+      try {
+        await gapi.client.init({
+          apiKey: apiKey,
+          discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
+        });
+        updateStep('calendar', { status: 'active', detail: 'Authenticating...' });
+        // GAPI is ready, and we have token from Login screen, so set it
+        if (googleToken) {
+            gapi.client.setToken({ access_token: googleToken });
+            await listUpcomingEvents();
+        } else {
+            updateStep('calendar', { status: 'failed', detail: 'No Google token available' });
+            checkAllStepsDone();
+        }
+      } catch (err) {
+        console.error('GAPI init error:', err);
+        updateStep('calendar', { status: 'failed', detail: 'Google API init failed' });
+        checkAllStepsDone();
       }
     };
 
     loadGapi();
   }, [apiKey, googleToken, refreshTrigger]); // Added refreshTrigger to reload calendar
 
+  // Check if all steps are resolved → clear loading
+  const checkAllStepsDone = () => {
+    setLoadingSteps((prev) => {
+      const allResolved = prev.every((s) => s.status === 'done' || s.status === 'failed' || s.status === 'skipped');
+      if (allResolved) setLoading(false);
+      return prev;
+    });
+  };
+
   // FETCH EVENTS (Authenticated)
   const listUpcomingEvents = async () => {
+     updateStep('calendar', { status: 'active', detail: 'Fetching today\'s bookings...' });
+
      const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Australia/Brisbane" }));
      const start = new Date(now);
      start.setHours(0, 0, 0, 0);
@@ -1914,23 +2274,34 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
          'orderBy': 'startTime',
        };
        const response = await gapi.client.calendar.events.list(request);
-       
+
        // BACKEND FILTER: Only start with "OP"
        const allEvents = response.result.items || [];
-       const filteredEvents = allEvents.filter(event => 
+       const filteredEvents = allEvents.filter(event =>
          event.summary && event.summary.toLowerCase().includes('op')
        );
 
        setBookings(filteredEvents);
+       updateStep('calendar', { status: 'done', detail: `${filteredEvents.length} bookings loaded` });
+       checkAllStepsDone();
      } catch (err) {
        console.error("Error fetching events", err);
+       updateStep('calendar', { status: 'failed', detail: 'Failed to fetch calendar events' });
        notify("Failed to fetch Google Calendar events.", 'error');
+       checkAllStepsDone();
      }
   };
 
   // --- TRIGGER LOGIC FOR ELEVENLABS (AUTOMATIC) ---
   useEffect(() => {
-    if (bookings.length === 0) return;
+    // If no bookings, announce once and return
+    if (bookings.length === 0) {
+      if (!loading && elevenLabsApiKey && !announcedEventIds.current.has('no-bookings-today')) {
+        announcedEventIds.current.add('no-bookings-today');
+        playAnnouncement("There are no upcoming bookings scheduled.");
+      }
+      return;
+    }
 
     const checkAnnouncements = () => {
       const nowTime = currentTime.getTime();
@@ -2058,142 +2429,52 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
       };
     } 
 
-    const headers = { 'Authorization': 'Basic ' + btoa(`${apiId}:${apiToken}`), 'Content-Type': 'application/json' };
-    const baseUrl = 'https://api.aircall.io/v1';
-    const startOfDay = Math.floor(new Date().setHours(0,0,0,0) / 1000);
+    // -----------------------------------------------------------------------
+    // AIRCALL: Reads from server-side cache (server handles all Aircall API calls)
+    // Frontend makes ZERO direct Aircall API requests.
+    // -----------------------------------------------------------------------
+    updateStep('aircall', { status: 'active', detail: 'Connecting to server...' });
 
-    const fetchUsers = async () => {
-      const res = await fetch(`${baseUrl}/users?per_page=50`, { headers });
-      if (!res.ok) throw new Error(`Users Fetch: ${res.status}`);
-      const data = await res.json();
-      const users = {};
-      data.users.forEach((user) => {
-        users[user.id] = {
-          name: user.name,
-          email: user.email || '',
-          status: normalizeAircallStatus(user?.availability_status || user?.status),
-        };
-      });
-      return users;
-    };
-
-    const syncCalls = async (fullSync = false) => {
-      if (syncInFlight.current) {
-        return;
-      }
-
+    const syncFromServer = async (isInitial = false) => {
+      if (syncInFlight.current) return;
       syncInFlight.current = true;
       const requestId = ++latestSyncRequestId.current;
 
       try {
         if (!isMounted) return;
-        setFetchStatus(fullSync ? 'Fetching daily history...' : 'Updating live feed...');
-        
-        // REFRESH CALENDAR - handled by dependency array now
-        
-        if (!loading) setErrorState(null); 
-        
-        const userMap = await fetchUsers(); 
-        let allowedUserIds = null;
-        try {
-           const teamsRes = await fetch(`${baseUrl}/teams`, { headers });
-           if (teamsRes.ok) {
-             const teamsData = await teamsRes.json();
-             const salesTeam = teamsData.teams.find(t => t.name.toLowerCase().includes('sales'));
-             if (salesTeam && salesTeam.users) {
-               allowedUserIds = new Set(salesTeam.users.map(u => String(u.id)));
-             }
-           }
-        } catch (e) {
-           console.warn("Could not fetch teams for filtering", e);
-        }
-        
-        let page = 1;
-        let keepFetching = true;
-        let highestTimestampSeen = latestCallTimestampSeen.current;
-        const liveSyncCutoff = latestCallTimestampSeen.current;
-        const isCallNewOrChanged = (call) => {
-          const callTimestamp = Number(call?.updated_at || call?.ended_at || call?.started_at || call?.created_at || 0);
-          const cachedCall = callsCache.current.get(call.id);
-          const cachedTimestamp = Number(cachedCall?.updated_at || cachedCall?.ended_at || cachedCall?.started_at || cachedCall?.created_at || 0);
+        if (isInitial) updateStep('aircall', { status: 'active', detail: 'Loading call data...' });
 
-          if (!cachedCall) return true;
-          if (callTimestamp > cachedTimestamp) return true;
-          if ((call.duration || 0) !== (cachedCall.duration || 0)) return true;
+        const res = await fetch('http://localhost:8787/api/aircall/data');
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        const { calls, users, allowedUserIds } = await res.json();
 
-          const callUserId = call?.user?.id ? String(call.user.id) : '';
-          const cachedUserId = cachedCall?.user?.id ? String(cachedCall.user.id) : '';
-          return callUserId !== cachedUserId;
-        };
+        // Apply normalizeAircallStatus to user statuses
+        const userMap = {};
+        Object.entries(users).forEach(([uid, u]) => {
+          userMap[uid] = { ...u, status: normalizeAircallStatus(u.status) };
+        });
+        const allowedSet = allowedUserIds ? new Set(allowedUserIds.map(String)) : null;
 
-        while (keepFetching) {
-          if (!isMounted) break;
-          if (loading && fullSync) setFetchStatus(`Retrieving page ${page}...`);
-
-          const data = await fetchPage(page, startOfDay, headers, baseUrl);
-          
-          if (!data && loading && fullSync) {
-            throw new Error("Rate Limit Exceeded during initial load. Please wait.");
-          }
-          if (!data) break; 
-
-          let pageHasNewData = false;
-          let oldestTimestampOnPage = Number.POSITIVE_INFINITY;
-          data.calls.forEach(call => {
-            const callTimestamp = Number(call?.updated_at || call?.ended_at || call?.started_at || call?.created_at || 0);
-            if (callTimestamp > highestTimestampSeen) {
-              highestTimestampSeen = callTimestamp;
-            }
-            if (callTimestamp && callTimestamp < oldestTimestampOnPage) {
-              oldestTimestampOnPage = callTimestamp;
-            }
-
-            if (isCallNewOrChanged(call)) {
-              pageHasNewData = true;
-              callsCache.current.set(call.id, call);
-            }
-          });
-
-          if (fullSync) {
-            if (data.meta && data.meta.next_page_link) {
-               page++;
-               await new Promise(r => setTimeout(r, 200)); 
-            } else {
-               keepFetching = false;
-            }
-          } else {
-            const hasNextPage = Boolean(data?.meta?.next_page_link);
-            const reachedKnownHistory = Number.isFinite(oldestTimestampOnPage) && oldestTimestampOnPage <= liveSyncCutoff;
-            keepFetching = hasNextPage && (!reachedKnownHistory || pageHasNewData);
-            if (keepFetching) {
-              page++;
-              await new Promise(r => setTimeout(r, 120));
-            }
-          }
-        }
-
-        latestCallTimestampSeen.current = Math.max(latestCallTimestampSeen.current, highestTimestampSeen);
+        // Update callsCache for dial-check useEffect
+        callsCache.current.clear();
+        calls.forEach(call => callsCache.current.set(call.id, call));
 
         const stats = {};
         Object.keys(userMap).forEach(uid => {
-          if (allowedUserIds) {
-            if (!allowedUserIds.has(uid)) {
-              return; 
-            }
-          }
+          if (allowedSet && !allowedSet.has(String(uid))) return;
           stats[uid] = { id: uid, name: userMap[uid]?.name || 'Unknown', dials: 0, talkTime: 0, isTarget: false };
         });
 
-        callsCache.current.forEach(call => {
-            if (call.user && stats[call.user.id] && (call.direction === 'inbound' || call.direction === 'outbound')) {
-              stats[call.user.id].dials += 1;
-              stats[call.user.id].talkTime += (call.duration || 0);
-            }
+        calls.forEach(call => {
+          if (!call.user) return;
+          if (!stats[call.user.id]) return;
+          stats[call.user.id].dials += 1;
+          stats[call.user.id].talkTime += (call.duration || 0);
         });
 
         const statusSeed = {};
         const activeCallUsers = new Set();
-        callsCache.current.forEach((call) => {
+        calls.forEach((call) => {
           if (isActiveCall(call) && call?.user?.id !== undefined && call?.user?.id !== null) {
             activeCallUsers.add(String(call.user.id));
           }
@@ -2212,17 +2493,15 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
         const targetPaceAgent = calculateTargetPace();
         const finalList = [ ...activeAgents, targetPaceAgent ].sort((a,b) => calculateScore(b.dials, b.talkTime) - calculateScore(a.dials, a.talkTime));
 
-        if (requestId < latestAppliedSyncId.current) {
-          return;
-        }
-
+        if (requestId < latestAppliedSyncId.current) return;
         latestAppliedSyncId.current = requestId;
 
         if (isMounted) {
           setAgents(finalList);
-          setFetchStatus('Live');
+          updateStep('aircall', { status: 'done', detail: `${activeAgents.length} agents loaded (${calls.length} calls)` });
           setLoading(false);
           setErrorState(null);
+          checkAllStepsDone();
 
           if (manualRefresh.current) {
              notify("Dashboard refreshed successfully.", 'success');
@@ -2232,100 +2511,24 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
       } catch (err) {
         console.error("Sync Error", err);
-        setFetchStatus('Error');
-        const errMsg = err.message.includes('Failed to fetch') 
-          ? 'CORS/Network Error. Browser blocked request.' 
+        updateStep('aircall', { status: 'failed', detail: err.message || 'Unknown error' });
+        const errMsg = err.message?.includes?.('Failed to fetch')
+          ? 'Cannot reach server. Is it running on port 8787?'
           : (err.message || 'Unknown Error');
         setErrorState(errMsg);
-        notify(`Sync Failed: ${errMsg}`, 'error');
+        if (isInitial) notify(`Sync Failed: ${errMsg}`, 'error');
+        checkAllStepsDone();
       } finally {
         syncInFlight.current = false;
       }
     };
 
-    syncCalls(true);
-    const intervalId = setInterval(() => { syncCalls(false); }, 30000);
+    // Initial fetch after short delay to let server receive credentials
+    const initTimeout = setTimeout(() => syncFromServer(true), 2000);
+    const intervalId = setInterval(() => { syncFromServer(false); }, 30000);
 
-    return () => { isMounted = false; clearInterval(intervalId); };
-  }, [apiId, apiToken, googleToken, refreshTrigger]); // Trigger refresh on refreshTrigger change
-
-  useEffect(() => {
-    if (apiId === 'demo') return undefined;
-
-    const socketUrl = toWebSocketUrl(AIRCALL_WEBHOOK_URL);
-    if (!socketUrl) {
-      console.warn('Invalid webhook URL. Skipping live status socket connection.');
-      return undefined;
-    }
-
-    let reconnectTimer = null;
-    let shouldReconnect = true;
-
-    const connect = () => {
-      if (!shouldReconnect) return;
-
-      try {
-        const socket = new WebSocket(socketUrl);
-        websocketRef.current = socket;
-
-        socket.onopen = () => {
-          console.log('Connected to webhook status socket.');
-        };
-
-        socket.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data);
-
-            const userIds = extractUserIdsFromWebhookEvent(payload);
-            if (userIds.length === 0) return;
-
-            const inCallSignal = parseInCallSignalFromWebhookEvent(payload);
-            const rawStatus = extractStatusFromWebhookEvent(payload);
-            const normalizedStatus = inCallSignal === true
-              ? 'in_call'
-              : (inCallSignal === false
-                ? 'available'
-                : normalizeAircallStatus(rawStatus));
-
-            if (!normalizedStatus) return;
-            setAgentStatuses((prev) => {
-              const next = { ...prev };
-              userIds.forEach((userId) => {
-                next[userId] = normalizedStatus;
-              });
-              return next;
-            });
-          } catch (err) {
-            console.warn('Unable to parse webhook socket event.', err);
-          }
-        };
-
-        socket.onerror = (err) => {
-          console.warn('Webhook status socket error.', err);
-        };
-
-        socket.onclose = () => {
-          websocketRef.current = null;
-          if (!shouldReconnect) return;
-          reconnectTimer = setTimeout(connect, 3000);
-        };
-      } catch (err) {
-        console.warn('Failed to connect to webhook status socket.', err);
-        reconnectTimer = setTimeout(connect, 3000);
-      }
-    };
-
-    connect();
-
-    return () => {
-      shouldReconnect = false;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (websocketRef.current && websocketRef.current.readyState < 2) {
-        websocketRef.current.close();
-      }
-      websocketRef.current = null;
-    };
-  }, [apiId]);
+    return () => { isMounted = false; clearTimeout(initTimeout); clearInterval(intervalId); };
+  }, [apiId, apiToken, refreshTrigger]);
 
   const maxDials = Math.max(...agents.map(a => a.dials), 1);
   const maxTalk = Math.max(...agents.map(a => a.talkTime), 1);
@@ -2359,7 +2562,12 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   const totalBookings = upcomingBookings.length;
 
   const agentsListRef = useFlipListAnimation(agents);
-  const bookingsListRef = useFlipListAnimation(upcomingBookings);
+  // Use a stable key derived from booking IDs only — NOT the full upcomingBookings
+  // array (which changes every second due to currentTime filtering), to prevent
+  // FLIP animations from firing on scroll/hover and causing jumps.
+  const bookingsIdKey = upcomingBookings.map((b) => b.id || '').join(',');
+  const stableBookingsKey = React.useMemo(() => bookingsIdKey, [bookingsIdKey]);
+  const bookingsListRef = useFlipListAnimation(stableBookingsKey);
 
 
   const brisbaneHourKeyFormatter = new Intl.DateTimeFormat('en-AU', {
@@ -2442,14 +2650,29 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
   };
 
   if (loading) {
-    return <LoadingScreen status={fetchStatus} error={errorState} onRetry={() => window.location.reload()} onCancel={onLogout} />;
+    return <LoadingScreen steps={loadingSteps} onRetry={() => window.location.reload()} onCancel={onLogout} />;
   }
 
   return (
     <div className="app-container">
+      {/* SERVICE WARNINGS BANNER (top-right persistent) */}
+      {serviceWarnings.length > 0 && (
+        <div className="service-warnings-banner">
+          {serviceWarnings.map((warning, idx) => (
+            <div key={warning} className="service-warning">
+              <span className="warning-dot" />
+              <span>{warning}</span>
+              <button onClick={() => setServiceWarnings((prev) => prev.filter((_, i) => i !== idx))}>
+                <XIcon size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* SPLIT VIEW WRAPPER */}
       <div className="main-split-view">
-        
+
         {/* LEFT PANEL: BOOKINGS (Swapped) */}
         <div className="bookings-panel">
           <div className="bookings-header">
@@ -2518,11 +2741,41 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
                       displaySummary = filteredParts.join(' - ');
                   }
 
+                  const bookingStarted = currentTime.getTime() >= startTime.getTime();
+                  const callEntries = bookingStarted ? (dialedBookingsRef.current.get(booking.id) || []) : [];
+
                   return (
                     <div key={booking.id || idx} className="booking-card" data-flip-key={String(booking.id || idx)}>
                        <div className="booking-meta">
                           <span className="booking-time"><CalendarIcon size={20} /> {timeStr}</span>
-                          <span className="booking-status">Confirmed</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            {callEntries.map((entry, ci) => {
+                              // Color by outcome: green=answered, amber=voicemail/no-answer, blue=in progress
+                              const iconColor = entry.active ? '#3b82f6'
+                                : entry.outcome === 'answered' ? '#22c55e'
+                                : '#f59e0b';
+                              const bgColor = entry.active ? 'rgba(59, 130, 246, 0.15)'
+                                : entry.outcome === 'answered' ? 'rgba(34, 197, 94, 0.15)'
+                                : 'rgba(245, 158, 11, 0.15)';
+                              return (
+                              <span key={entry.callId || ci} className="dial-icon-wrapper" style={{
+                                position: 'relative',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: 22, height: 22, borderRadius: '50%',
+                                backgroundColor: bgColor,
+                                cursor: 'pointer',
+                              }}>
+                                <PhoneIcon size={13} color={iconColor} />
+                                <span className="dial-tooltip">
+                                  {entry.active
+                                    ? 'Call in progress'
+                                    : (entry.summary || transcriptCacheRef.current.get(entry.callId) || entry.outcomeLabel || 'Loading summary...')}
+                                </span>
+                              </span>
+                              );
+                            })}
+                            <span className="booking-status">Confirmed</span>
+                          </div>
                        </div>
                        <div className="booking-summary">{displaySummary}</div>
                        
@@ -2613,7 +2866,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
 
             <div ref={agentsListRef}>
               {agents.map((agent, index) => (
-                <AgentRow key={agent.id} rank={index + 1} agent={agent} maxDials={maxDials} maxTalk={maxTalk} statusMap={agentStatuses} hasLeadChange={currentTime.getTime() - leaderChangedAt < 1200} />
+                <AgentRow key={agent.id} rank={index + 1} agent={agent} maxDials={maxDials} maxTalk={maxTalk} statusMap={agentStatuses} hasLeadChange={currentTime.getTime() - leaderChangedAt < 1200} nickname={agentNicknames[String(agent.id)]} onSaveNickname={saveAgentNickname} />
               ))}
             </div>
           </div>
@@ -2803,11 +3056,17 @@ const SaleClearedPopup = ({ saleData, onClose }) => {
             </p>
 
             <p className="sale-popup-text">
-              Payment succeeded for <strong>{saleData.businessName}</strong>.
+              Payment Successful: <strong style={{ color: '#ffffff' }}>{saleData.businessName}</strong>
             </p>
 
-            <p className="sale-popup-text sale-popup-contact-line" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              Contact:{' '}<strong>{saleData.customerName}</strong>
+            {saleData.packageName ? (
+              <p className="sale-popup-text">
+                Package: <strong style={{ color: '#ffffff' }}>{saleData.packageName}</strong>
+              </p>
+            ) : null}
+
+            <p className="sale-popup-text sale-popup-contact-line" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.35rem' }}>
+              Contact: <strong style={{ color: '#ffffff' }}>{saleData.customerName}</strong>
               <span className="sale-popup-pulse five" />
             </p>
           </div>
@@ -2889,6 +3148,7 @@ export default function App() {
       customerName: payload?.customerName || 'Test Customer',
       businessName: payload?.businessName || payload?.customerName || 'Test Business',
       paymentAmount: payload?.paymentAmount || 0,
+      packageName: payload?.packageName || '',
       isSimulation: Boolean(payload?.isSimulation),
     });
 
@@ -2908,6 +3168,12 @@ export default function App() {
     if (credentials?.stripeKey) {
       socket.emit('set_stripe_key', credentials.stripeKey);
     }
+    if (credentials?.anthropicKey) {
+      socket.emit('set_anthropic_key', credentials.anthropicKey);
+    }
+    if (credentials?.id && credentials?.token && credentials.id !== 'demo') {
+      socket.emit('set_aircall_credentials', { apiId: credentials.id, apiToken: credentials.token });
+    }
 
     socket.on('sale_cleared', (payload) => {
       triggerSalePopup(payload);
@@ -2919,7 +3185,7 @@ export default function App() {
         clearTimeout(salePopupTimeoutRef.current);
       }
     };
-  }, [credentials?.stripeKey]);
+  }, [credentials?.stripeKey, credentials?.id, credentials?.token]);
 
   useEffect(() => {
     return () => {
@@ -2941,9 +3207,8 @@ export default function App() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
   
-  // UPDATED: Accept elevenLabsApiKey and stripeKey
-  const handleConnect = (id, token, apiKey, googleToken, elevenLabsApiKey, stripeKey) => { 
-    setCredentials({ id, token, apiKey, googleToken, elevenLabsApiKey, stripeKey }); 
+  const handleConnect = (id, token, apiKey, googleToken, elevenLabsApiKey, stripeKey, anthropicKey) => {
+    setCredentials({ id, token, apiKey, googleToken, elevenLabsApiKey, stripeKey, anthropicKey });
   };
   
   const handleDemo = () => {
@@ -2976,7 +3241,42 @@ export default function App() {
              notify={notify}
              toggleTheme={toggleTheme}
              theme={theme}
-             onSimulateSale={() => triggerSalePopup({ customerName: 'Test Customer', businessName: 'Demo Business', paymentAmount: 497, isSimulation: true })}
+             onSimulateSale={() => {
+               triggerSalePopup({ customerName: 'Test Customer', businessName: 'Demo Business', paymentAmount: 497, packageName: 'Growth Package', isSimulation: true });
+               const simCusId = 'cus_simulated_' + Date.now();
+               // Step 1: customer.created (adds to newlyCreatedCustomerIds on server)
+               fetch('http://localhost:8787/webhook', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                   type: 'customer.created',
+                   data: {
+                     object: {
+                       id: simCusId,
+                       name: 'Test Customer',
+                       email: 'test@example.com',
+                     },
+                   },
+                 }),
+               }).then(() => {
+                 // Step 2: checkout.session.completed (triggers sale email with package)
+                 fetch('http://localhost:8787/webhook', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({
+                     type: 'checkout.session.completed',
+                     data: {
+                       object: {
+                         customer: simCusId,
+                         amount_total: 49700,
+                         customer_details: { name: 'Test Customer' },
+                         metadata: { business_name: 'Demo Business', package_name: 'Growth Package' },
+                       },
+                     },
+                   }),
+                 }).catch(() => {});
+               }).catch(() => {});
+             }}
            />
         )}
       </div>
