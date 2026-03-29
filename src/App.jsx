@@ -120,12 +120,14 @@ const styles = `
 
   /* MAIN CONTAINER - FLEX COLUMN FOR FIXED HEADER/FOOTER */
   .app-container {
-    height: 100vh; width: 100%;
+    height: 111.111vh; width: 111.111%;
     background-color: var(--bg-dark); color: var(--text-primary);
     display: flex; flex-direction: column;
     overflow: hidden;
     padding-top: 0.5rem; /* Tiny gap at the top */
     transition: background-color 0.3s ease;
+    transform: scale(0.9);
+    transform-origin: top left;
   }
 
   /* TOAST NOTIFICATIONS */
@@ -2389,7 +2391,43 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
     };
 
     checkAnnouncements();
-  }, [currentTime, bookings]); 
+  }, [currentTime, bookings]);
+
+  // --- SCHEDULED FOLLOW-UP REMINDER (Mon-Fri: 9:30, 11:30, 14:30, 16:30) ---
+  const firedRemindersRef = useRef(new Set());
+  useEffect(() => {
+    if (!elevenLabsApiKey) return;
+    const now = currentTime;
+    const day = now.getDay(); // 0=Sun, 6=Sat
+    if (day === 0 || day === 6) return; // weekdays only
+
+    const slots = [
+      { h: 9, m: 30 },
+      { h: 11, m: 30 },
+      { h: 14, m: 30 },
+      { h: 16, m: 30 },
+    ];
+    const hh = now.getHours();
+    const mm = now.getMinutes();
+    const dateKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+
+    slots.forEach(({ h, m }) => {
+      if (day === 5 && h === 16 && m === 30) return; // Skip 4:30 PM on Fridays
+      if (hh === h && mm === m) {
+        const key = `followup-${dateKey}-${h}:${m}`;
+        if (!firedRemindersRef.current.has(key)) {
+          firedRemindersRef.current.add(key);
+          playAnnouncement("Team, this is a reminder to call and confirm any follow up ops that you have in for the next business day.");
+        }
+      }
+    });
+  }, [currentTime, elevenLabsApiKey]);
+
+  // Test handler for follow-up reminder
+  const handleTestFollowUpReminder = () => {
+    notify("Testing follow-up reminder...", 'success');
+    playAnnouncement("Team, this is a reminder to call and confirm any follow up ops that you have in for the next business day.");
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -2816,6 +2854,7 @@ const Dashboard = ({ apiId, apiToken, googleToken, apiKey, elevenLabsApiKey, onL
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <h1 className="main-title">Sales Leaderboard</h1>
                 <button className="simulate-sale-button" onClick={onSimulateSale}>🎉 Simulate Sale</button>
+                <button className="simulate-sale-button" onClick={handleTestFollowUpReminder} title="Test follow-up reminder">🎙️ Test Reminder</button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.1em' }}>
                 <span style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.1)', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>COMBINED METRICS</span>
